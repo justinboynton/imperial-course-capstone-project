@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import json
 import os
+import math
 import warnings
 from datetime import datetime
 from scipy.stats import norm
@@ -18,8 +19,17 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
+
+try:
+    import anthropic as _anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
 
 warnings.filterwarnings("ignore")
+
+ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # =============================================================================
 # PAGE CONFIG
@@ -123,7 +133,7 @@ st.markdown("""
   }
 
   .obs-row {
-    display: grid; grid-template-columns: 36px 1fr auto;
+    display: grid; grid-template-columns: 36px 1fr auto auto;
     gap: 0.5rem; padding: 0.3rem 0;
     border-bottom: 1px solid #1e2d4530;
     font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
@@ -133,6 +143,22 @@ st.markdown("""
   .obs-input { color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .obs-output { color: #10b981; font-weight: 600; text-align: right; }
   .obs-best { color: #f59e0b !important; }
+  .obs-meta { color: #64748b; font-size: 0.62rem; text-align: right; white-space: nowrap; }
+
+  .ai-box {
+    background: #0a0e1a; border: 1px solid #7c3aed44;
+    border-radius: 8px; padding: 1.1rem 1.2rem;
+    font-size: 0.82rem; line-height: 1.75; color: #cbd5e1;
+  }
+  .ai-box h3 { color: #a78bfa; font-size: 0.9rem; margin: 0.9rem 0 0.3rem; font-family: 'Syne', sans-serif; }
+  .ai-box strong { color: #e2e8f0; }
+  .ai-box code { background: #1e2d45; padding: 0.1rem 0.35rem; border-radius: 3px;
+                  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: #00d4ff; }
+  .ai-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #7c3aed; margin-bottom: 0.5rem;
+  }
 
   /* Streamlit widget overrides */
   .stSelectbox > div > div,
@@ -194,7 +220,7 @@ FN_COLORS = [
 FUNCTION_CONFIG = {
     1: {
         "dims": 2, "bounds": [(0.0,1.0)]*2,
-        "kernel": "rbf", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
+        "kernel": "matern", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
         "description": "2D contamination/radiation field",
         "dim_labels": ["x₁ (position)", "x₂ (position)"],
         "notes": "Sparse non-zero regions suggest the signal is localised. UCB with beta=2.0 keeps exploration high early to avoid missing the signal entirely. Reduce beta to 1.0 after a non-zero reading.",
@@ -259,24 +285,47 @@ FUNCTION_CONFIG = {
 # PERSISTENCE
 # =============================================================================
 HISTORY_FILE = "capstone_history.json"
+INITIAL_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "initial_data")
+
+
+def load_initial_data() -> dict[int, dict]:
+    """
+    Load the provided initial .npy observations for each function.
+    Returns {fn_id: {"X": ndarray (n, dims), "Y": ndarray (n,)}}
+    Only loads files that actually exist; missing directories are silently skipped.
+    """
+    result = {}
+    for fn_id in range(1, 9):
+        folder = os.path.join(INITIAL_DATA_DIR, f"function_{fn_id}")
+        x_path = os.path.join(folder, "initial_inputs.npy")
+        y_path = os.path.join(folder, "initial_outputs.npy")
+        if os.path.isfile(x_path) and os.path.isfile(y_path):
+            X = np.load(x_path).astype(np.float64)
+            Y = np.load(y_path).astype(np.float64).ravel()
+            n = min(len(X), len(Y))
+            result[fn_id] = {"X": X[:n], "Y": Y[:n]}
+    return result
 
 
 def align_xy_pair(fn_h: dict) -> bool:
     """
-    Ensure X and Y have the same length (paired observations).
-    Truncates the longer list. Returns True if anything was changed.
+    Ensure X, Y and meta all have the same length.
+    Truncates the longer lists. Returns True if anything was changed.
     """
     X, Y = fn_h.get("X", []), fn_h.get("Y", [])
     nx, ny = len(X), len(Y)
-    if nx == ny:
-        return False
+    changed = nx != ny
     n = min(nx, ny)
     fn_h["X"] = X[:n]
     fn_h["Y"] = Y[:n]
     w = fn_h.get("week", 0)
     if w > n:
         fn_h["week"] = n
-    return True
+    meta = fn_h.get("meta", [])
+    if len(meta) != n:
+        fn_h["meta"] = (meta + [{}] * n)[:n]
+        changed = True
+    return changed
 
 
 def load_history():
@@ -286,6 +335,12 @@ def load_history():
         history = {int(k): v for k, v in raw.items()}
         dirty = False
         for _fid, fn_h in history.items():
+            if "meta" not in fn_h:
+                fn_h["meta"] = [{}] * len(fn_h.get("Y", []))
+                dirty = True
+            if "ai_analyses" not in fn_h:
+                fn_h["ai_analyses"] = []
+                dirty = True
             if align_xy_pair(fn_h):
                 dirty = True
         if dirty:
@@ -295,7 +350,7 @@ def load_history():
             except OSError:
                 pass
         return history
-    return {i: {"X": [], "Y": [], "week": 0} for i in range(1, 9)}
+    return {i: {"X": [], "Y": [], "week": 0, "meta": [], "ai_analyses": []} for i in range(1, 9)}
 
 def save_history(history):
     with open(HISTORY_FILE, "w") as f:
@@ -325,31 +380,41 @@ def compute_acquisition(acq, mean, std, y_max, beta, xi):
         return norm.cdf(z)
     return mean
 
-def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_override=None):
+def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_override=None,
+                 initial_data: dict | None = None):
     cfg = FUNCTION_CONFIG[fn_id]
     fn_h = history[fn_id]
     acq  = acq_override  or cfg["acquisition"]
     beta = beta_override or cfg["beta"]
     xi   = xi_override   or cfg["xi"]
 
-    if not fn_h["X"]:
-        if "informed_start" in cfg:
-            return cfg["informed_start"], None, None
-        return [round(np.random.uniform(0,1), 6) for _ in range(cfg["dims"])], None, None
+    # --- Assemble training data: initial .npy observations + portal submissions ---
+    X_parts, Y_parts = [], []
 
-    if align_xy_pair(fn_h):
-        try:
-            save_history(history)
-        except OSError:
-            pass
-    X = np.asarray(fn_h["X"], dtype=np.float64)
-    Y = np.asarray(fn_h["Y"], dtype=np.float64)
-    n = min(len(X), len(Y))
-    X, Y = X[:n], Y[:n]
-    if len(Y) == 0:
+    init = (initial_data or {}).get(fn_id)
+    if init is not None:
+        X_parts.append(init["X"])
+        Y_parts.append(init["Y"])
+
+    if fn_h["X"]:
+        if align_xy_pair(fn_h):
+            try:
+                save_history(history)
+            except OSError:
+                pass
+        X_sub = np.asarray(fn_h["X"], dtype=np.float64)
+        Y_sub = np.asarray(fn_h["Y"], dtype=np.float64)
+        n = min(len(X_sub), len(Y_sub))
+        X_parts.append(X_sub[:n])
+        Y_parts.append(Y_sub[:n])
+
+    if not X_parts:
         if "informed_start" in cfg:
             return cfg["informed_start"], None, None
         return [round(np.random.uniform(0, 1), 6) for _ in range(cfg["dims"])], None, None
+
+    X = np.vstack(X_parts)
+    Y = np.concatenate(Y_parts)
 
     if not np.all(np.isfinite(Y)):
         Y = np.nan_to_num(Y, nan=0.0, posinf=1e300, neginf=-1e300)
@@ -402,6 +467,265 @@ def make_history_chart(fn_id, color, fn_h):
                       showlegend=False)
     fig.update_xaxes(tickvals=weeks, dtick=1)
     return fig
+
+def _prepare_gp(fn_id, history, initial_data):
+    """
+    Fit a GP on combined initial + portal data for fn_id.
+    Returns (gp, X_train, Y_train, best_x) or None if < 2 points.
+    """
+    cfg = FUNCTION_CONFIG[fn_id]
+    fn_h = history[fn_id]
+    X_parts, Y_parts = [], []
+    init = (initial_data or {}).get(fn_id)
+    if init is not None:
+        X_parts.append(init["X"])
+        Y_parts.append(init["Y"])
+    if fn_h["X"]:
+        align_xy_pair(fn_h)
+        Xs = np.asarray(fn_h["X"], dtype=np.float64)
+        Ys = np.asarray(fn_h["Y"], dtype=np.float64)
+        n = min(len(Xs), len(Ys))
+        X_parts.append(Xs[:n])
+        Y_parts.append(Ys[:n])
+    if not X_parts:
+        return None
+    X = np.vstack(X_parts)
+    Y = np.concatenate(Y_parts)
+    if not np.all(np.isfinite(Y)):
+        Y = np.nan_to_num(Y, nan=0.0)
+    Y = np.clip(Y, -1e12, 1e12)
+    if len(Y) < 2:
+        return None
+    gp = build_gp(cfg["kernel"])
+    gp.fit(X, Y)
+    best_x = X[np.argmax(Y)].copy()
+    return gp, X, Y, best_x
+
+
+def make_gp_slice_plot(fn_id, color, history, initial_data):
+    """
+    For each input dimension, plot a 1D slice through the GP posterior
+    (all other dims fixed at the best-known point), showing mean ± 95% CI.
+    Also overlays the training observations projected onto each dimension.
+    """
+    result = _prepare_gp(fn_id, history, initial_data)
+    if result is None:
+        return None
+    gp, X_train, Y_train, best_x = result
+    cfg = FUNCTION_CONFIG[fn_id]
+    dims = cfg["dims"]
+    labels = [lbl.split(":")[0].strip() for lbl in cfg["dim_labels"]]
+
+    n_cols = 2
+    n_rows = math.ceil(dims / n_cols)
+    subplot_titles = [labels[d] if d < dims else "" for d in range(n_rows * n_cols)]
+    fig = make_subplots(
+        rows=n_rows, cols=n_cols,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.12, horizontal_spacing=0.10,
+    )
+
+    grid = np.linspace(0, 1, 150)
+    rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
+
+    for d in range(dims):
+        row, col = divmod(d, n_cols)
+        row += 1; col += 1
+
+        X_slice = np.tile(best_x, (len(grid), 1))
+        X_slice[:, d] = grid
+        mean, std = gp.predict(X_slice, return_std=True)
+        ci_upper = mean + 1.96 * std
+        ci_lower = mean - 1.96 * std
+
+        fig.add_trace(go.Scatter(
+            x=np.concatenate([grid, grid[::-1]]),
+            y=np.concatenate([ci_upper, ci_lower[::-1]]),
+            fill="toself",
+            fillcolor=f"rgba({rgb[0]},{rgb[1]},{rgb[2]},0.12)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="95% CI", showlegend=(d == 0),
+            legendgroup="ci",
+        ), row=row, col=col)
+        fig.add_trace(go.Scatter(
+            x=grid, y=mean,
+            mode="lines", line=dict(color=color, width=2),
+            name="GP Mean", showlegend=(d == 0),
+            legendgroup="mean",
+        ), row=row, col=col)
+        fig.add_trace(go.Scatter(
+            x=X_train[:, d], y=Y_train,
+            mode="markers",
+            marker=dict(color="#f59e0b", size=5, opacity=0.7,
+                        line=dict(color="#0a0e1a", width=1)),
+            name="Observations", showlegend=(d == 0),
+            legendgroup="obs",
+        ), row=row, col=col)
+
+    fig.update_layout(
+        **PLOTLY_LAYOUT,
+        height=220 * n_rows,
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            font=dict(size=10, color="#94a3b8"),
+        ),
+    )
+    fig.update_annotations(font=dict(size=10, color="#94a3b8"))
+    fig.update_xaxes(range=[0, 1], tickfont=dict(size=9))
+    fig.update_yaxes(tickfont=dict(size=9))
+    return fig
+
+
+def make_acq_comparison_plot(fn_id, history, initial_data, beta, xi):
+    """
+    For each input dimension, show all four acquisition functions (UCB, EI, PI, Variance)
+    normalised to [0,1] so their shapes can be compared side by side.
+    """
+    result = _prepare_gp(fn_id, history, initial_data)
+    if result is None:
+        return None
+    gp, X_train, Y_train, best_x = result
+    cfg = FUNCTION_CONFIG[fn_id]
+    dims = cfg["dims"]
+    labels = [lbl.split(":")[0].strip() for lbl in cfg["dim_labels"]]
+    y_max = float(Y_train.max())
+
+    n_cols = 2
+    n_rows = math.ceil(dims / n_cols)
+    subplot_titles = [labels[d] if d < dims else "" for d in range(n_rows * n_cols)]
+    fig = make_subplots(
+        rows=n_rows, cols=n_cols,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.12, horizontal_spacing=0.10,
+    )
+
+    grid = np.linspace(0, 1, 150)
+    acq_styles = {
+        "UCB":      dict(color="#00d4ff", dash="solid"),
+        "EI":       dict(color="#10b981", dash="solid"),
+        "PI":       dict(color="#a78bfa", dash="solid"),
+        "Variance": dict(color="#f59e0b", dash="dot"),
+    }
+
+    def _norm(arr):
+        lo, hi = arr.min(), arr.max()
+        return (arr - lo) / (hi - lo + 1e-12)
+
+    for d in range(dims):
+        row, col = divmod(d, n_cols)
+        row += 1; col += 1
+
+        X_slice = np.tile(best_x, (len(grid), 1))
+        X_slice[:, d] = grid
+        mean, std = gp.predict(X_slice, return_std=True)
+
+        scores = {
+            "UCB":      _norm(mean + beta * std),
+            "EI":       _norm(compute_acquisition("ei", mean, std, y_max, beta, xi)),
+            "PI":       _norm(compute_acquisition("pi", mean, std, y_max, beta, xi)),
+            "Variance": _norm(std ** 2),
+        }
+
+        for acq_name, vals in scores.items():
+            sty = acq_styles[acq_name]
+            fig.add_trace(go.Scatter(
+                x=grid, y=vals,
+                mode="lines",
+                line=dict(color=sty["color"], width=1.8, dash=sty["dash"]),
+                name=acq_name,
+                showlegend=(d == 0),
+                legendgroup=acq_name,
+            ), row=row, col=col)
+
+    fig.update_layout(
+        **PLOTLY_LAYOUT,
+        height=220 * n_rows,
+        yaxis_title="Score (normalised)",
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02,
+            font=dict(size=10, color="#94a3b8"),
+        ),
+    )
+    fig.update_annotations(font=dict(size=10, color="#94a3b8"))
+    fig.update_xaxes(range=[0, 1], tickfont=dict(size=9))
+    fig.update_yaxes(range=[-0.05, 1.05], tickfont=dict(size=9))
+    return fig
+
+
+def ai_analysis(fn_id, history, initial_data, api_key: str) -> str:
+    """
+    Call Claude to analyse observations for fn_id and return strategy recommendations.
+    """
+    if not HAS_ANTHROPIC:
+        return "Install the `anthropic` package (`pip install anthropic`) to enable AI analysis."
+
+    cfg = FUNCTION_CONFIG[fn_id]
+    fn_h = history[fn_id]
+    init = (initial_data or {}).get(fn_id)
+
+    init_summary = "No initial data loaded."
+    if init is not None:
+        Y_init = init["Y"]
+        init_summary = (
+            f"{len(Y_init)} initial observations provided by the challenge.\n"
+            f"  Y range: [{float(Y_init.min()):.4f}, {float(Y_init.max()):.4f}]  "
+            f"  Mean: {float(Y_init.mean()):.4f}  Std: {float(Y_init.std()):.4f}\n"
+            f"  Best initial X: {init['X'][int(np.argmax(Y_init))].tolist()}"
+        )
+
+    portal_obs = "No portal submissions recorded yet."
+    if fn_h["Y"]:
+        lines = []
+        for i, (x, y) in enumerate(zip(fn_h["X"], fn_h["Y"])):
+            m = fn_h.get("meta", [{}] * len(fn_h["Y"]))
+            mi = m[i] if i < len(m) else {}
+            acq_str = f"acq={mi.get('acq','?').upper()}, β={mi.get('beta','?')}, ξ={mi.get('xi','?')}, kernel={mi.get('kernel','?')}"
+            lines.append(f"  Week {i+1}: X={[round(v,4) for v in x]}, Y={y:.6g}  [{acq_str}]")
+        portal_obs = "\n".join(lines)
+
+    best_y = max(fn_h["Y"]) if fn_h["Y"] else None
+    best_str = f"{best_y:.6g}" if best_y is not None else "none yet"
+
+    prompt = f"""You are an expert Bayesian optimisation advisor analysing progress on a black-box maximisation challenge.
+
+## Function {fn_id} — {cfg['description']}
+- Dimensionality: {cfg['dims']}D, all inputs normalised to [0, 1]
+- Dimensions: {', '.join(cfg['dim_labels'])}
+- Goal: MAXIMISE the output
+
+## Initial Data (provided at challenge start)
+{init_summary}
+
+## Portal Submissions (one per week, each includes the acquisition settings used)
+{portal_obs}
+
+## Current Best Portal Output
+{best_str}
+
+## Domain Notes
+{cfg['notes']}
+
+---
+Please provide:
+1. **Landscape Analysis** — what does the data tell us about the shape of this function? Are there patterns, clusters, or ridgelines visible?
+2. **Acquisition Strategy Review** — given the settings used so far (acq function, β, ξ, kernel), were they appropriate? What would you change and why?
+3. **Next Query Recommendation** — suggest a specific region or point to query next and explain the reasoning.
+4. **β and ξ Settings** — recommend specific values for the next submission with justification.
+5. **Overall Strategy** — what is the best approach for the remaining queries to maximise the output?
+
+Be concise and specific. Use markdown formatting."""
+
+    try:
+        client = _anthropic.Anthropic(api_key=api_key)
+        msg = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text
+    except Exception as exc:
+        return f"API error: {exc}"
+
 
 def make_summary_chart(history):
     rows = []
@@ -473,14 +797,39 @@ if "acq_overrides" not in st.session_state:
     st.session_state.acq_overrides = {}
 if "query_draft" not in st.session_state:
     st.session_state.query_draft = {}
+if "initial_data" not in st.session_state:
+    st.session_state.initial_data = load_initial_data()
+if "ai_cache" not in st.session_state:
+    # Pre-populate session cache from the most recent stored analysis for each function
+    _cache: dict = {}
+    for _fid in range(1, 9):
+        _analyses = st.session_state.history[_fid].get("ai_analyses", [])
+        if _analyses:
+            _latest = _analyses[-1]
+            _cache[_fid] = {
+                "cache_key": (_fid, _latest.get("obs_count", 0)),
+                "text": _latest["text"],
+            }
+    st.session_state.ai_cache = _cache
 
 history = st.session_state.history
+initial_data = st.session_state.initial_data
+
+# Resolve Anthropic API key: secrets → env → None (prompts user in UI)
+def _get_api_key() -> str | None:
+    try:
+        k = st.secrets["ANTHROPIC_API_KEY"]
+        if k:
+            return k
+    except (KeyError, FileNotFoundError):
+        pass
+    return os.environ.get("ANTHROPIC_API_KEY")
 
 # Auto-generate week-1 suggestions for any function that has no observations yet
 # and hasn't had a suggestion generated yet — so inputs are never blank on load
 for _fn_id in range(1, 9):
     if _fn_id not in st.session_state.suggestion:
-        _sug, _, _ = suggest_next(_fn_id, history)
+        _sug, _, _ = suggest_next(_fn_id, history, initial_data=initial_data)
         st.session_state.suggestion[_fn_id] = _sug
         st.session_state.gp_info[_fn_id] = (None, None)
     _dims = len(FUNCTION_CONFIG[_fn_id]["dim_labels"])
@@ -567,7 +916,7 @@ with right_col:
         unsafe_allow_html=True
     )
 
-    tabs = st.tabs(["📥  Query", "📊  History", "📝  Reflection", "⚙️  Strategy"])
+    tabs = st.tabs(["📥  Query", "📊  History", "📝  Reflection", "⚙️  Strategy", "🤖  AI Analysis"])
 
     # ---------------------------------------------------------------
     # TAB 1: QUERY
@@ -643,12 +992,22 @@ with right_col:
                     fn_h["X"].append([round(v, 6) for v in input_vals])
                     fn_h["Y"].append(float(obs_output))
                     fn_h["week"] = fn_h.get("week", 0) + 1
+                    if "meta" not in fn_h:
+                        fn_h["meta"] = [{}] * (len(fn_h["Y"]) - 1)
+                    fn_h["meta"].append({
+                        "acq": acq_choice,
+                        "beta": beta_val,
+                        "xi": xi_val,
+                        "kernel": cfg["kernel"],
+                    })
+                    st.session_state.ai_cache.pop(fn_id, None)
                     save_history(history)
                     suggestion, gp_mean, gp_std = suggest_next(
                         fn_id, history,
                         acq_override=acq_choice,
                         beta_override=beta_val,
                         xi_override=xi_val,
+                        initial_data=initial_data,
                     )
                     st.session_state.suggestion[fn_id] = suggestion
                     st.session_state.gp_info[fn_id] = (gp_mean, gp_std)
@@ -661,6 +1020,7 @@ with right_col:
                         acq_override=acq_choice,
                         beta_override=beta_val,
                         xi_override=xi_val,
+                        initial_data=initial_data,
                     )
                     st.session_state.suggestion[fn_id] = suggestion
                     st.session_state.gp_info[fn_id] = (gp_mean, gp_std)
@@ -697,16 +1057,22 @@ with right_col:
                 st.markdown("")
                 st.markdown('<div class="section-label" style="margin-top:0.5rem">Observation Log</div>', unsafe_allow_html=True)
                 y_max_val = max(fn_h["Y"])
+                fn_meta = fn_h.get("meta", [])
                 rows_html = ""
                 for i, (x, y) in enumerate(zip(fn_h["X"], fn_h["Y"])):
                     is_best = y == y_max_val
                     out_cls = "obs-best" if is_best else "obs-output"
                     star = " ★" if is_best else ""
+                    mi = fn_meta[i] if i < len(fn_meta) else {}
+                    meta_str = ""
+                    if mi:
+                        meta_str = f"{mi.get('acq','?').upper()} β={mi.get('beta','?')} ξ={mi.get('xi','?')}"
                     rows_html += f"""
                     <div class="obs-row">
                       <div class="obs-week">W{i+1}</div>
                       <div class="obs-input">[{', '.join(f'{v:.3f}' for v in x)}]</div>
                       <div class="{out_cls}">{y:.4f}{star}</div>
+                      <div class="obs-meta">{meta_str}</div>
                     </div>"""
                 st.markdown(f'<div style="max-height:180px;overflow-y:auto">{rows_html}</div>', unsafe_allow_html=True)
 
@@ -714,6 +1080,9 @@ with right_col:
                 if st.button("↩ Undo last observation", key=f"undo_{fn_id}"):
                     fn_h["X"].pop(); fn_h["Y"].pop()
                     fn_h["week"] = max(0, fn_h.get("week", 1) - 1)
+                    if fn_h.get("meta"):
+                        fn_h["meta"].pop()
+                    st.session_state.ai_cache.pop(fn_id, None)
                     save_history(history)
                     st.rerun()
 
@@ -723,9 +1092,9 @@ with right_col:
     with tabs[1]:
         fig = make_history_chart(fn_id, color, fn_h)
         if fig:
+            st.markdown('<div class="section-label">Portal Submissions Over Time</div>', unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-            # Stats row
             Y = fn_h["Y"]
             s1, s2, s3, s4 = st.columns(4)
             s1.metric("Best", f"{max(Y):.4f}")
@@ -733,12 +1102,26 @@ with right_col:
             s3.metric("Mean", f"{np.mean(Y):.4f}")
             s4.metric("Observations", len(Y))
 
-            # Data table
-            df = pd.DataFrame({
+            df_cols = {
                 "Week": range(1, len(Y)+1),
                 **{cfg["dim_labels"][i]: [x[i] for x in fn_h["X"]] for i in range(cfg["dims"])},
                 "Output": [round(y, 6) for y in Y],
-            })
+            }
+            fn_meta = fn_h.get("meta", [])
+            if any(fn_meta):
+                df_cols["Acq"] = [
+                    (fn_meta[i].get("acq","").upper() if i < len(fn_meta) else "") for i in range(len(Y))
+                ]
+                df_cols["β"] = [
+                    (fn_meta[i].get("beta","") if i < len(fn_meta) else "") for i in range(len(Y))
+                ]
+                df_cols["ξ"] = [
+                    (fn_meta[i].get("xi","") if i < len(fn_meta) else "") for i in range(len(Y))
+                ]
+                df_cols["Kernel"] = [
+                    (fn_meta[i].get("kernel","") if i < len(fn_meta) else "") for i in range(len(Y))
+                ]
+            df = pd.DataFrame(df_cols)
             st.dataframe(
                 df.style.highlight_max(subset=["Output"], color="#f59e0b22"),
                 use_container_width=True, hide_index=True
@@ -749,6 +1132,37 @@ with right_col:
                         font-family:'JetBrains Mono',monospace;font-size:0.8rem;
                         border:1px dashed #1e2d45;border-radius:8px">
               No observations yet for this function.<br>Use the Query tab to record your first result.
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("")
+        st.markdown('<div class="section-label">GP Posterior — Mean & 95% Confidence Interval</div>', unsafe_allow_html=True)
+        st.caption("1D slices through the GP: all other dimensions held fixed at the best-known point.")
+        fig_gp = make_gp_slice_plot(fn_id, color, history, initial_data)
+        if fig_gp:
+            st.plotly_chart(fig_gp, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.markdown("""
+            <div style="text-align:center;padding:1.5rem;color:#64748b;
+                        font-family:'JetBrains Mono',monospace;font-size:0.8rem;
+                        border:1px dashed #1e2d45;border-radius:8px">
+              Need at least 2 data points to fit the GP.
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("")
+        st.markdown('<div class="section-label">Acquisition Function Comparison</div>', unsafe_allow_html=True)
+        st.caption("All four acquisition functions normalised to [0, 1] — shows where each would rank as the next best query along each dimension.")
+        _beta_viz = st.session_state.acq_overrides.get(fn_id) and cfg["beta"] or cfg["beta"]
+        fig_acq = make_acq_comparison_plot(fn_id, history, initial_data, cfg["beta"], cfg["xi"])
+        if fig_acq:
+            st.plotly_chart(fig_acq, use_container_width=True, config={"displayModeBar": False})
+        else:
+            st.markdown("""
+            <div style="text-align:center;padding:1.5rem;color:#64748b;
+                        font-family:'JetBrains Mono',monospace;font-size:0.8rem;
+                        border:1px dashed #1e2d45;border-radius:8px">
+              Need at least 2 data points to render acquisition comparison.
             </div>
             """, unsafe_allow_html=True)
 
@@ -772,6 +1186,7 @@ with right_col:
         if fn_id == 7:
             st.markdown("")
             st.markdown('<div class="section-label">GBM Parameter Guide</div>', unsafe_allow_html=True)
+
             gbm_data = {
                 "Dimension": ["Dim 1","Dim 2","Dim 3","Dim 4","Dim 5","Dim 6"],
                 "Parameter": ["n_estimators","learning_rate","max_depth","subsample","max_features","regularisation"],
@@ -785,6 +1200,100 @@ with right_col:
               Dim 2 ↑ (learning_rate) → Dim 1 ↓ (n_estimators)<br>
               Dim 3 ↑ (max_depth) → Dim 4 ↓ (subsample)<br>
               Noisy output → Dim 6 ↑ (more regularisation)
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------------
+    # TAB 5: AI ANALYSIS
+    # ---------------------------------------------------------------
+    with tabs[4]:
+        st.markdown('<div class="section-label">AI-Powered Analysis & Strategy</div>', unsafe_allow_html=True)
+
+        api_key = _get_api_key()
+        if not api_key:
+            st.markdown("""
+            <div style="background:#0a0e1a;border:1px solid #f59e0b44;border-radius:8px;
+                        padding:0.9rem 1rem;font-family:'JetBrains Mono',monospace;
+                        font-size:0.78rem;color:#f59e0b">
+              ⚠️ No Anthropic API key found.<br>
+              Set <code>ANTHROPIC_API_KEY</code> in your environment or <code>.streamlit/secrets.toml</code>,
+              or enter it below.
+            </div>
+            """, unsafe_allow_html=True)
+            api_key = st.text_input(
+                "Anthropic API Key", type="password",
+                placeholder="sk-ant-...",
+                key=f"api_key_input_{fn_id}",
+                label_visibility="collapsed",
+            )
+
+        n_obs = len(fn_h["Y"])
+        cache_key = (fn_id, n_obs)
+        cached = st.session_state.ai_cache.get(fn_id)
+        cached_valid = cached and cached.get("cache_key") == cache_key
+
+        col_btn1, col_btn2 = st.columns([1, 3])
+        with col_btn1:
+            run_analysis = st.button(
+                "✨ Generate Analysis" if not cached_valid else "🔄 Refresh Analysis",
+                key=f"ai_run_{fn_id}",
+                type="primary", use_container_width=True,
+                disabled=not api_key,
+            )
+        with col_btn2:
+            if cached_valid:
+                stored = fn_h.get("ai_analyses", [])
+                latest = stored[-1] if stored else {}
+                ts = latest.get("timestamp", "")
+                ts_str = f" · saved {ts}" if ts else ""
+                st.markdown(
+                    f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.68rem;'
+                    f'color:#64748b">Analysis for week {latest.get("week", "?")} '
+                    f'({latest.get("obs_count", n_obs)} obs){ts_str}</span>',
+                    unsafe_allow_html=True,
+                )
+
+        if run_analysis and api_key:
+            with st.spinner("Calling Claude..."):
+                result = ai_analysis(fn_id, history, initial_data, api_key)
+            ts_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+            entry = {
+                "week": fn_h.get("week", n_obs),
+                "obs_count": n_obs,
+                "timestamp": ts_now,
+                "text": result,
+            }
+            if "ai_analyses" not in fn_h:
+                fn_h["ai_analyses"] = []
+            fn_h["ai_analyses"].append(entry)
+            save_history(history)
+            st.session_state.ai_cache[fn_id] = {"cache_key": cache_key, "text": result}
+            cached_valid = True
+
+        if cached_valid:
+            text = st.session_state.ai_cache[fn_id]["text"]
+            st.markdown(f'<div class="ai-box">{text}</div>', unsafe_allow_html=True)
+
+            # Past analyses archive
+            past = fn_h.get("ai_analyses", [])
+            if len(past) > 1:
+                st.markdown("")
+                with st.expander(f"📚  Analysis history ({len(past)} saved)", expanded=False):
+                    for entry in reversed(past):
+                        st.markdown(
+                            f'<div class="ai-label">Week {entry.get("week","?")} · '
+                            f'{entry.get("obs_count","?")} obs · {entry.get("timestamp","")}</div>',
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f'<div class="ai-box" style="margin-bottom:0.75rem">{entry["text"]}</div>',
+                                    unsafe_allow_html=True)
+        elif not run_analysis:
+            st.markdown("""
+            <div style="text-align:center;padding:3rem;color:#64748b;
+                        font-family:'JetBrains Mono',monospace;font-size:0.8rem;
+                        border:1px dashed #1e2d45;border-radius:8px">
+              Click "Generate Analysis" to have Claude review your observations<br>
+              and recommend a strategy for the next query.
             </div>
             """, unsafe_allow_html=True)
 
