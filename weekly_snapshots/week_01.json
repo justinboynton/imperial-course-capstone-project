@@ -1,0 +1,58 @@
+{
+  "week": 1,
+  "date": "2026-04-04",
+  "approach": "GP with UCB/EI acquisition. Week 1 submissions were generated before initial .npy data was integrated into the surrogate — settings not recorded in meta (pre-tracking).",
+  "submissions": {
+    "1": {
+      "X": [0.999247, 0.985647],
+      "acq": "ucb", "beta": 2.0, "xi": 0.05, "kernel": "rbf",
+      "note": "Top-right corner. Kernel later changed to matern — RBF inappropriate for localised hotspot."
+    },
+    "2": {
+      "X": [0.115878, 0.884079],
+      "acq": "ucb", "beta": 2.5, "xi": 0.1, "kernel": "matern",
+      "note": "Low-X1, high-X2 — moved away from known initial best at [0.703, 0.927]. Over-exploration."
+    },
+    "3": {
+      "X": [0.778655, 0.249003, 0.41851],
+      "acq": "ei", "beta": 1.96, "xi": 0.02, "kernel": "matern",
+      "note": "High-A, low-B region. Initial best has high-B (~0.61) — this confirmed B matters."
+    },
+    "4": {
+      "X": [0.43811, 0.032583, 0.981555, 0.372065],
+      "acq": "ucb", "beta": 2.0, "xi": 0.05, "kernel": "matern",
+      "note": "Extreme values (P2≈0, P3≈1). Exploratory but too far from best region."
+    },
+    "5": {
+      "X": [0.816816, 0.08509, 0.386806, 0.716711],
+      "acq": "ei", "beta": 1.5, "xi": 0.01, "kernel": "rbf",
+      "note": "High-C1, low-C2 — opposite of best initial [0.224, 0.846, 0.879, 0.879]. Over-exploration."
+    },
+    "6": {
+      "X": [0.834917, 0.531385, 0.123811, 0.512032, 0.474771],
+      "acq": "ei", "beta": 1.96, "xi": 0.02, "kernel": "matern",
+      "note": "High Sugar and Milk vs initial best (low both). Result confirmed penalising effect."
+    },
+    "7": {
+      "X": [0.333, 0.31, 0.25, 0.8, 0.8, 0.05],
+      "acq": "ei", "beta": 1.96, "xi": 0.05, "kernel": "matern",
+      "note": "Informed start heuristic. High subsample/max_features, low regularisation — opposite of initial best."
+    },
+    "8": {
+      "X": [0.241537, 0.754347, 0.171428, 0.086557, 0.351128, 0.974082, 0.194979, 0.655785],
+      "acq": "ucb", "beta": 2.5, "xi": 0.1, "kernel": "matern",
+      "note": "Near initial best range. Result 9.26 vs initial best 9.60 — reasonable but not improved."
+    }
+  },
+  "results": {
+    "1": {"Y": 1.4651363789369865e-185, "vs_initial_best": 0.0,    "improved": false},
+    "2": {"Y": 0.025881683797552953,   "vs_initial_best": 0.6112,  "improved": false},
+    "3": {"Y": -0.04170018583441116,   "vs_initial_best": -0.0348, "improved": false},
+    "4": {"Y": -21.253810526556737,    "vs_initial_best": -4.0255, "improved": false},
+    "5": {"Y": 50.439618727665014,     "vs_initial_best": 1088.86, "improved": false},
+    "6": {"Y": -1.8257197043544238,    "vs_initial_best": -0.7143, "improved": false},
+    "7": {"Y": 0.12068188764397988,    "vs_initial_best": 1.365,   "improved": false},
+    "8": {"Y": 9.2596670106315,        "vs_initial_best": 9.5985,  "improved": false}
+  },
+  "week_summary": "All 8 portal submissions landed below the best known value from initial data. Primary cause: initial .npy data was not yet loaded into the GP when suggestions were generated — surrogate had near-zero training data. This has been fixed for week 2 onwards. Key learning: initial data integration is essential before generating any suggestions."
+}
