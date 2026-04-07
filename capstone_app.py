@@ -196,6 +196,54 @@ st.markdown("""
 
   hr { border-color: #1e2d45; }
 
+  .week-card {
+    background: #111827; border: 1px solid #1e2d45;
+    border-radius: 10px; padding: 1rem 1.1rem;
+    margin-bottom: 0.75rem; position: relative;
+  }
+  .week-card-improved { border-left: 3px solid #10b981 !important; }
+  .week-card-same     { border-left: 3px solid #475569 !important; }
+  .week-card-best     { border-left: 3px solid #f59e0b !important; }
+
+  .week-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.6rem;
+  }
+  .week-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem; font-weight: 700;
+    color: #e2e8f0; letter-spacing: 0.05em;
+  }
+  .week-delta-up   { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #10b981; font-weight: 600; }
+  .week-delta-down { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #ef4444; font-weight: 600; }
+  .week-delta-new  { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: #64748b; }
+
+  .week-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .week-cell {
+    background: #0a0e1a; border: 1px solid #1e2d4560;
+    border-radius: 6px; padding: 0.35rem 0.6rem;
+  }
+  .week-cell-label { font-size: 0.58rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'JetBrains Mono', monospace; }
+  .week-cell-value { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: #cbd5e1; margin-top: 0.1rem; word-break: break-all; }
+  .week-cell-value-hi { color: #f59e0b !important; font-weight: 600; }
+
+  .week-reflection {
+    background: #0a0e1a; border: 1px solid #1e2d45;
+    border-radius: 6px; padding: 0.65rem 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; line-height: 1.65; color: #94a3b8;
+    margin-top: 0.5rem;
+  }
+  .week-ai-badge {
+    display: inline-block; padding: 0.12rem 0.45rem;
+    border-radius: 4px; font-size: 0.62rem; font-weight: 600;
+    background: rgba(124,58,237,0.15); color: #a78bfa;
+    font-family: 'JetBrains Mono', monospace; margin-left: 0.4rem;
+  }
+
   .header-title {
     font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em;
     background: linear-gradient(135deg, #00d4ff, #7c3aed);
@@ -445,7 +493,7 @@ PLOTLY_LAYOUT = dict(
     yaxis=dict(gridcolor="#1e2d45", zerolinecolor="#1e2d45"),
 )
 
-def make_history_chart(fn_id, color, fn_h):
+def make_history_chart(fn_id, color, fn_h, initial_data=None):
     Y = fn_h["Y"]
     if not Y:
         return None
@@ -457,10 +505,20 @@ def make_history_chart(fn_id, color, fn_h):
         line=dict(color=color, width=2),
         marker=dict(color=color, size=7, line=dict(color="#0a0e1a", width=1.5)),
         fill="tozeroy", fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.08)",
-        name="Output",
+        name="Portal submissions",
     ))
+    # Initial data best as a reference baseline
+    init = (initial_data or {}).get(fn_id)
+    if init is not None:
+        init_best = float(init["Y"].max())
+        fig.add_hline(
+            y=init_best, line_dash="dot", line_color="#475569", line_width=1.5,
+            annotation_text=f"Initial best: {init_best:.4f}",
+            annotation_font_color="#94a3b8", annotation_font_size=9,
+            annotation_position="bottom right",
+        )
     fig.add_hline(y=y_max, line_dash="dash", line_color="#f59e0b", line_width=1,
-                  annotation_text=f"Best: {y_max:.4f}", annotation_font_color="#f59e0b",
+                  annotation_text=f"Portal best: {y_max:.4f}", annotation_font_color="#f59e0b",
                   annotation_font_size=10)
     fig.update_layout(**PLOTLY_LAYOUT, height=220,
                       xaxis_title="Week", yaxis_title="Output",
@@ -502,11 +560,12 @@ def _prepare_gp(fn_id, history, initial_data):
     return gp, X, Y, best_x
 
 
-def make_gp_slice_plot(fn_id, color, history, initial_data):
+def make_gp_slice_plot(fn_id, color, history, initial_data, suggestion=None):
     """
     For each input dimension, plot a 1D slice through the GP posterior
     (all other dims fixed at the best-known point), showing mean ± 95% CI.
-    Also overlays the training observations projected onto each dimension.
+    Initial data and portal submissions are shown with distinct colours.
+    An optional vertical line marks the current suggestion per dimension.
     """
     result = _prepare_gp(fn_id, history, initial_data)
     if result is None:
@@ -515,6 +574,10 @@ def make_gp_slice_plot(fn_id, color, history, initial_data):
     cfg = FUNCTION_CONFIG[fn_id]
     dims = cfg["dims"]
     labels = [lbl.split(":")[0].strip() for lbl in cfg["dim_labels"]]
+
+    # Split training data into initial vs portal submissions
+    init = (initial_data or {}).get(fn_id)
+    n_init = len(init["X"]) if init is not None else 0
 
     n_cols = 2
     n_rows = math.ceil(dims / n_cols)
@@ -538,6 +601,7 @@ def make_gp_slice_plot(fn_id, color, history, initial_data):
         ci_upper = mean + 1.96 * std
         ci_lower = mean - 1.96 * std
 
+        # 95% CI band
         fig.add_trace(go.Scatter(
             x=np.concatenate([grid, grid[::-1]]),
             y=np.concatenate([ci_upper, ci_lower[::-1]]),
@@ -547,20 +611,56 @@ def make_gp_slice_plot(fn_id, color, history, initial_data):
             name="95% CI", showlegend=(d == 0),
             legendgroup="ci",
         ), row=row, col=col)
+
+        # GP posterior mean
         fig.add_trace(go.Scatter(
             x=grid, y=mean,
             mode="lines", line=dict(color=color, width=2),
             name="GP Mean", showlegend=(d == 0),
             legendgroup="mean",
         ), row=row, col=col)
-        fig.add_trace(go.Scatter(
-            x=X_train[:, d], y=Y_train,
-            mode="markers",
-            marker=dict(color="#f59e0b", size=5, opacity=0.7,
-                        line=dict(color="#0a0e1a", width=1)),
-            name="Observations", showlegend=(d == 0),
-            legendgroup="obs",
-        ), row=row, col=col)
+
+        # Initial data observations (muted grey)
+        if n_init > 0:
+            fig.add_trace(go.Scatter(
+                x=X_train[:n_init, d], y=Y_train[:n_init],
+                mode="markers",
+                marker=dict(color="#475569", size=5, opacity=0.65,
+                            symbol="circle", line=dict(color="#0a0e1a", width=0.5)),
+                name="Initial data", showlegend=(d == 0),
+                legendgroup="init",
+            ), row=row, col=col)
+
+        # Portal submissions (function colour + amber for best)
+        if len(X_train) > n_init:
+            X_portal = X_train[n_init:]
+            Y_portal = Y_train[n_init:]
+            best_p = int(np.argmax(Y_portal))
+            non_best = [i for i in range(len(Y_portal)) if i != best_p]
+            if non_best:
+                fig.add_trace(go.Scatter(
+                    x=X_portal[non_best, d], y=Y_portal[non_best],
+                    mode="markers",
+                    marker=dict(color=color, size=7, opacity=0.9,
+                                symbol="circle", line=dict(color="#0a0e1a", width=1)),
+                    name="Your submissions", showlegend=(d == 0),
+                    legendgroup="portal",
+                ), row=row, col=col)
+            fig.add_trace(go.Scatter(
+                x=[X_portal[best_p, d]], y=[Y_portal[best_p]],
+                mode="markers",
+                marker=dict(color="#f59e0b", size=10, opacity=1.0,
+                            symbol="diamond", line=dict(color="#0a0e1a", width=1.5)),
+                name="Best submission", showlegend=(d == 0),
+                legendgroup="portal_best",
+            ), row=row, col=col)
+
+        # Current suggestion as a vertical dashed line
+        if suggestion and d < len(suggestion):
+            fig.add_vline(
+                x=suggestion[d], line_color="#00d4ff", line_dash="dash",
+                line_width=1.5, row=row, col=col,
+            )
 
     fig.update_layout(
         **PLOTLY_LAYOUT,
@@ -649,6 +749,134 @@ def make_acq_comparison_plot(fn_id, history, initial_data, beta, xi):
     fig.update_annotations(font=dict(size=10, color="#94a3b8"))
     fig.update_xaxes(range=[0, 1], tickfont=dict(size=9))
     fig.update_yaxes(range=[-0.05, 1.05], tickfont=dict(size=9))
+    return fig
+
+
+def make_query_space_plot(fn_id, color, history, initial_data, suggestion=None):
+    """
+    Strip plot showing, for each input dimension, where the current suggestion
+    sits relative to all historical observations.
+
+    Layers (bottom → top):
+      - Initial data: grey circles
+      - Initial best: grey diamond
+      - Portal submissions: function-colour circles
+      - Best portal submission: amber diamond
+      - Next query suggestion: cyan star
+    """
+    cfg = FUNCTION_CONFIG[fn_id]
+    dims = cfg["dims"]
+    labels = [lbl.split(":")[0].strip() for lbl in cfg["dim_labels"]]
+    init = (initial_data or {}).get(fn_id)
+    fn_h = history[fn_id]
+
+    fig = go.Figure()
+
+    # --- Initial data ---
+    if init is not None:
+        X_init = init["X"]
+        Y_init = init["Y"]
+        best_init_idx = int(np.argmax(Y_init))
+
+        xs, ys, texts = [], [], []
+        for d in range(dims):
+            for j in range(len(X_init)):
+                xs.append(X_init[j, d])
+                ys.append(labels[d])
+                texts.append(f"Initial #{j+1}: {labels[d]} = {X_init[j,d]:.4f}  (Y={Y_init[j]:.4g})")
+        fig.add_trace(go.Scatter(
+            x=xs, y=ys, mode="markers",
+            marker=dict(color="#334155", size=6, opacity=0.7,
+                        symbol="circle", line=dict(color="#0a0e1a", width=0.5)),
+            name="Initial data",
+            text=texts, hoverinfo="text",
+            legendgroup="init",
+        ))
+
+        # Best initial point
+        xs_b, ys_b, texts_b = [], [], []
+        for d in range(dims):
+            xs_b.append(X_init[best_init_idx, d])
+            ys_b.append(labels[d])
+            texts_b.append(f"Initial best: {labels[d]} = {X_init[best_init_idx,d]:.4f}  (Y={Y_init[best_init_idx]:.4g})")
+        fig.add_trace(go.Scatter(
+            x=xs_b, y=ys_b, mode="markers",
+            marker=dict(color="#94a3b8", size=9, opacity=0.9,
+                        symbol="diamond", line=dict(color="#0a0e1a", width=1)),
+            name="Initial best",
+            text=texts_b, hoverinfo="text",
+            legendgroup="init_best",
+        ))
+
+    # --- Portal observations ---
+    if fn_h["X"]:
+        X_portal = np.asarray(fn_h["X"])
+        Y_portal = np.asarray(fn_h["Y"])
+        best_p = int(np.argmax(Y_portal))
+        non_best = [i for i in range(len(Y_portal)) if i != best_p]
+
+        if non_best:
+            xs, ys, texts = [], [], []
+            for i in non_best:
+                for d in range(dims):
+                    xs.append(X_portal[i, d])
+                    ys.append(labels[d])
+                    texts.append(f"Week {i+1}: {labels[d]} = {X_portal[i,d]:.4f}  (Y={Y_portal[i]:.4g})")
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="markers",
+                marker=dict(color=color, size=9, opacity=0.85,
+                            symbol="circle", line=dict(color="#0a0e1a", width=1)),
+                name="Your submissions",
+                text=texts, hoverinfo="text",
+                legendgroup="portal",
+            ))
+
+        # Best portal point
+        xs_b, ys_b, texts_b = [], [], []
+        for d in range(dims):
+            xs_b.append(X_portal[best_p, d])
+            ys_b.append(labels[d])
+            texts_b.append(f"Week {best_p+1} (best): {labels[d]} = {X_portal[best_p,d]:.4f}  (Y={Y_portal[best_p]:.4g})")
+        fig.add_trace(go.Scatter(
+            x=xs_b, y=ys_b, mode="markers",
+            marker=dict(color="#f59e0b", size=13, opacity=1.0,
+                        symbol="diamond", line=dict(color="#0a0e1a", width=1.5)),
+            name=f"Best submission (W{best_p+1})",
+            text=texts_b, hoverinfo="text",
+            legendgroup="portal_best",
+        ))
+
+    # --- Current suggestion ---
+    if suggestion:
+        xs_s, ys_s, texts_s = [], [], []
+        for d in range(dims):
+            xs_s.append(suggestion[d])
+            ys_s.append(labels[d])
+            texts_s.append(f"Next query: {labels[d]} = {suggestion[d]:.6f}")
+        fig.add_trace(go.Scatter(
+            x=xs_s, y=ys_s, mode="markers",
+            marker=dict(color="#00d4ff", size=14, symbol="star",
+                        line=dict(color="#0a0e1a", width=1.5)),
+            name="Next query (suggested)",
+            text=texts_s, hoverinfo="text",
+            legendgroup="suggestion",
+        ))
+
+    layout = {
+        **PLOTLY_LAYOUT,
+        "height": max(200, 38 * dims + 110),
+        "legend": dict(
+            orientation="h", yanchor="bottom", y=1.04,
+            font=dict(size=10, color="#94a3b8"),
+            itemclick=False, itemdoubleclick=False,
+        ),
+        "margin": dict(l=110, r=20, t=55, b=40),
+        "hovermode": "closest",
+    }
+    fig.update_layout(**layout)
+    fig.update_xaxes(range=[-0.05, 1.05], title_text="Input value [0, 1]",
+                     gridcolor="#1e2d45", zerolinecolor="#1e2d45")
+    fig.update_yaxes(autorange="reversed", gridcolor="#1e2d45")
     return fig
 
 
@@ -916,7 +1144,7 @@ with right_col:
         unsafe_allow_html=True
     )
 
-    tabs = st.tabs(["📥  Query", "📊  History", "📝  Reflection", "⚙️  Strategy", "🤖  AI Analysis"])
+    tabs = st.tabs(["📥  Query", "📊  History", "📝  Reflection", "⚙️  Strategy", "🤖  AI Analysis", "📅  Journal"])
 
     # ---------------------------------------------------------------
     # TAB 1: QUERY
@@ -1086,11 +1314,22 @@ with right_col:
                     save_history(history)
                     st.rerun()
 
+        # Full-width input space plot — always visible once initial data is loaded
+        st.markdown("")
+        st.markdown('<div class="section-label">Input Space — This Week\'s Query vs All Observations</div>', unsafe_allow_html=True)
+        st.caption("★ Cyan star = suggested next query · ◆ Amber diamond = best submission · ◆ Grey diamond = initial data best · Grey dots = initial data · Coloured dots = your submissions")
+        fig_space = make_query_space_plot(
+            fn_id, color, history, initial_data,
+            suggestion=st.session_state.suggestion.get(fn_id),
+        )
+        if fig_space:
+            st.plotly_chart(fig_space, use_container_width=True, config={"displayModeBar": False})
+
     # ---------------------------------------------------------------
     # TAB 2: HISTORY CHART
     # ---------------------------------------------------------------
     with tabs[1]:
-        fig = make_history_chart(fn_id, color, fn_h)
+        fig = make_history_chart(fn_id, color, fn_h, initial_data=initial_data)
         if fig:
             st.markdown('<div class="section-label">Portal Submissions Over Time</div>', unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -1138,7 +1377,8 @@ with right_col:
         st.markdown("")
         st.markdown('<div class="section-label">GP Posterior — Mean & 95% Confidence Interval</div>', unsafe_allow_html=True)
         st.caption("1D slices through the GP: all other dimensions held fixed at the best-known point.")
-        fig_gp = make_gp_slice_plot(fn_id, color, history, initial_data)
+        fig_gp = make_gp_slice_plot(fn_id, color, history, initial_data,
+                                    suggestion=st.session_state.suggestion.get(fn_id))
         if fig_gp:
             st.plotly_chart(fig_gp, use_container_width=True, config={"displayModeBar": False})
         else:
@@ -1296,6 +1536,151 @@ with right_col:
               and recommend a strategy for the next query.
             </div>
             """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------------------
+    # TAB 6: JOURNAL — per-week observations, strategy, reflection, AI
+    # ---------------------------------------------------------------
+    with tabs[5]:
+        st.markdown('<div class="section-label">Weekly Journal</div>', unsafe_allow_html=True)
+
+        if not fn_h["Y"]:
+            st.markdown("""
+            <div style="text-align:center;padding:3rem;color:#64748b;
+                        font-family:'JetBrains Mono',monospace;font-size:0.8rem;
+                        border:1px dashed #1e2d45;border-radius:8px">
+              No observations recorded yet for this function.<br>
+              Record your first result in the Query tab to start the journal.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            fn_meta = fn_h.get("meta", [])
+            ai_analyses = fn_h.get("ai_analyses", [])
+
+            # Index AI analyses by obs_count so we can look them up per week
+            ai_by_obs: dict[int, list[dict]] = {}
+            for _entry in ai_analyses:
+                _oc = _entry.get("obs_count", 0)
+                ai_by_obs.setdefault(_oc, []).append(_entry)
+
+            init = (initial_data or {}).get(fn_id)
+            init_best = float(init["Y"].max()) if init is not None else None
+
+            # Render newest week first
+            for i in range(len(fn_h["Y"]) - 1, -1, -1):
+                week_num = i + 1
+                x_vec = fn_h["X"][i]
+                y_val = fn_h["Y"][i]
+                mi = fn_meta[i] if i < len(fn_meta) else {}
+
+                # Determine improvement vs previous portal best
+                prev_best = max(fn_h["Y"][:i]) if i > 0 else None
+                curr_best = max(fn_h["Y"][:i + 1])
+                is_all_time_best = (y_val == max(fn_h["Y"]))
+                improved = prev_best is None or y_val > prev_best
+
+                # Card accent class
+                if is_all_time_best:
+                    card_cls = "week-card week-card-best"
+                elif improved:
+                    card_cls = "week-card week-card-improved"
+                else:
+                    card_cls = "week-card week-card-same"
+
+                # Delta label
+                if prev_best is None:
+                    delta_html = '<span class="week-delta-new">First submission</span>'
+                elif improved:
+                    pct = (y_val - prev_best) / abs(prev_best) * 100 if prev_best != 0 else 0
+                    delta_html = f'<span class="week-delta-up">▲ +{pct:.1f}% vs prev best</span>'
+                else:
+                    pct = (y_val - prev_best) / abs(prev_best) * 100 if prev_best != 0 else 0
+                    delta_html = f'<span class="week-delta-down">▼ {pct:.1f}% vs prev best</span>'
+
+                # AI badge if analysis exists for this week
+                has_ai = week_num in ai_by_obs
+                ai_badge = '<span class="week-ai-badge">AI</span>' if has_ai else ""
+
+                # Acquisition settings
+                acq_str = mi.get("acq", cfg["acquisition"]).upper()
+                beta_str = mi.get("beta", cfg["beta"])
+                xi_str   = mi.get("xi",   cfg["xi"])
+                kernel_str = mi.get("kernel", cfg["kernel"])
+                vs_init = ""
+                if init_best is not None:
+                    diff = y_val - init_best
+                    sign = "+" if diff >= 0 else ""
+                    vs_init = f'{sign}{diff:.4f} vs initial best'
+
+                # Per-week mini reflection
+                if prev_best is None:
+                    refl = (
+                        f"First portal submission for this function. "
+                        f"Submitted input [{', '.join(f'{v:.4f}' for v in x_vec)}] "
+                        f"and received Y = {y_val:.4f}. "
+                    )
+                    if init_best is not None:
+                        if y_val > init_best:
+                            refl += f"This exceeded the initial data best of {init_best:.4f} — a strong start."
+                        else:
+                            refl += (
+                                f"The initial data best is {init_best:.4f}; this submission is below that. "
+                                f"The GP needs more data to converge on the peak region."
+                            )
+                elif improved:
+                    refl = (
+                        f"Submitted [{', '.join(f'{v:.4f}' for v in x_vec)}] → Y = {y_val:.4f}. "
+                        f"Improvement of {y_val - prev_best:+.4f} over previous best {prev_best:.4f}. "
+                        f"The {acq_str} acquisition function (β={beta_str}, ξ={xi_str}) directed the search "
+                        f"to a more promising region. Continue exploiting this neighbourhood."
+                    )
+                else:
+                    refl = (
+                        f"Submitted [{', '.join(f'{v:.4f}' for v in x_vec)}] → Y = {y_val:.4f}. "
+                        f"Did not improve on the best of {curr_best:.4f}. "
+                        f"The {acq_str} acquisition settings (β={beta_str}, ξ={xi_str}) may need adjustment — "
+                        f"consider {'increasing β to explore more broadly' if acq_str == 'UCB' else 'increasing ξ to escape the current local region'}."
+                    )
+
+                y_val_cls = "week-cell-value week-cell-value-hi" if is_all_time_best else "week-cell-value"
+
+                st.markdown(f"""
+                <div class="{card_cls}">
+                  <div class="week-header">
+                    <span class="week-num">WEEK {week_num}{ai_badge}</span>
+                    {delta_html}
+                  </div>
+                  <div class="week-grid">
+                    <div class="week-cell">
+                      <div class="week-cell-label">Input submitted</div>
+                      <div class="week-cell-value">[{', '.join(f'{v:.4f}' for v in x_vec)}]</div>
+                    </div>
+                    <div class="week-cell">
+                      <div class="week-cell-label">Output received</div>
+                      <div class="{y_val_cls}">{y_val:.6g}{'  ★ all-time best' if is_all_time_best else ''}</div>
+                    </div>
+                    <div class="week-cell">
+                      <div class="week-cell-label">Acquisition settings</div>
+                      <div class="week-cell-value">{acq_str}  β={beta_str}  ξ={xi_str}  {kernel_str}</div>
+                    </div>
+                    <div class="week-cell">
+                      <div class="week-cell-label">vs initial data best</div>
+                      <div class="week-cell-value">{vs_init if vs_init else '—'}</div>
+                    </div>
+                  </div>
+                  <div class="week-reflection">{refl}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # AI analyses for this week (newest first)
+                if has_ai:
+                    week_analyses = sorted(ai_by_obs[week_num],
+                                           key=lambda e: e.get("timestamp", ""), reverse=True)
+                    for _a in week_analyses:
+                        ts = _a.get("timestamp", "")
+                        label = f"AI Analysis · Week {week_num} · {ts}"
+                        with st.expander(label, expanded=(week_num == len(fn_h["Y"]))):
+                            st.markdown(f'<div class="ai-box">{_a["text"]}</div>',
+                                        unsafe_allow_html=True)
 
 # =============================================================================
 # BOTTOM: ALL-FUNCTIONS SUMMARY
