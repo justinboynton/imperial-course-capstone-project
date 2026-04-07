@@ -250,4 +250,136 @@ One entry per function per week following the challenge format.
 
 ---
 
+---
+
+## Week 3 — 2026-04-14
+
+### Function 1 — 2D Contamination Field
+
+**Submitted:** [0.150000, 0.500000] → **Y ≈ 0.000**
+
+**Acquisition:** UCB β=2.0, Matérn 5/2, arcsinh Y-transform
+
+**Exploration or exploitation?** Exploration — targeted the left half of the space (X₁=0.15), mid-height.
+
+**Did it improve on the best?** No. Four distinct regions have now returned near-zero: top-right (W1), lower-right (W2), left-mid (W3), and the initial data cluster. No signal has been detected anywhere.
+
+**What did it teach us?** The contamination hotspot has not been found in three weeks. The arcsinh Y-transform was enabled this week, which spreads the near-zero values to give the GP more structure to learn from. However without any non-zero reading the transform cannot help the acquisition function converge. The function may have a single extremely narrow peak that requires either very precise targeting or substantially more systematic search. The initial data's "best" Y = 7.71×10⁻¹⁶ is effectively numerical noise rather than a real signal.
+
+**Strategy for next week:** Abandon GP guidance temporarily — it has nothing useful to learn from. Switch to systematic grid-based exploration of the lower-left quadrant [X₁ < 0.5, X₂ < 0.5], which is the only major region not yet tested. Submit [0.25, 0.25] as a representative point. If still zero, consider [0.50, 0.15] (bottom-centre) in week 5.
+
+---
+
+### Function 2 — 2D Noisy Log-Likelihood
+
+**Submitted:** [0.693500, 0.905800] → **Y = 0.4929**
+
+**Acquisition:** UCB β=2.5, Matérn 5/2
+
+**Exploration or exploitation?** Exploitation — closely targeted the initial best region [0.703, 0.927].
+
+**Did it improve on the best?** Significant improvement on portal submissions (0.053 → 0.493 — a 9× jump). However, still below the initial best of 0.6112. The all-time best remains in the initial data.
+
+**What did it teach us?** Targeting the initial best neighbourhood directly worked — 0.493 is close to the initial best of 0.611 and shows the GP surrogate has now learned the right direction. Week 1 and 2's lower scores were caused by querying away from this region. The SVR analysis confirmed this region as the consensus peak. The remaining gap (0.493 vs 0.611) may be noise in the function or may indicate the true peak is slightly displaced from the initial best point.
+
+**Strategy for next week:** Tighten exploitation further. Submit at the GP posterior mean maximiser — use "mean" acquisition or EI ξ=0.001. Target very close to [0.703, 0.927] — within ±0.02 of the initial best coordinates. The function is noisy so multiple nearby queries will eventually bracket the true peak.
+
+---
+
+### Function 3 — 3D Drug Compounds
+
+**Submitted:** [0.558800, 0.030300, 0.554200] → **Y = -0.1227**
+
+**Acquisition:** EI β=1.96, ξ=0.02, Matérn 5/2
+
+**Exploration or exploitation?** Exploration — EI moved the query to a very different region, particularly Compound B ≈ 0.03 (extremely low).
+
+**Did it improve on the best?** No — severe regression. Dropped from -0.0182 (W2 best) to -0.1227. Worst result across all three weeks, substantially worse than even the initial best (-0.0348).
+
+**What did it teach us?** Compound B near zero (0.030) is clearly catastrophic. This strongly re-establishes the importance of Compound B being in a reasonable range. Week 2 had B=0.339 and produced the best result; week 3's B=0.030 produced the worst. The EI acquisition over-explored here — moving 5× away from the current best in B-space. The lesson is that with only 18 observations in 3D, EI can generate large exploratory jumps that are counterproductive. We should tighten the acquisition to stay near the current best.
+
+**Strategy for next week:** Return to tight exploitation around the W2 best [0.446, 0.339, 0.486]. Switch to EI ξ=0.005 or "mean" acquisition. Enforce a soft constraint: do not submit with Compound B < 0.20. The GP needs to see more observations around the known good region before it can reliably guide exploration.
+
+---
+
+### Function 4 — 4D Warehouse Hyperparameters
+
+**Submitted:** [0.455700, 0.406300, 0.384700, 0.304300] → **Y = -1.5683**
+
+**Acquisition:** UCB β=2.0, ξ=0.05, Matérn 5/2, ARD enabled
+
+**Exploration or exploitation?** Exploitation — close to W2 best with slight parameter adjustments.
+
+**Did it improve on the best?** No. Slight regression from -1.1765 (W2) to -1.5683 (-33%). The W2 best at [0.460, 0.413, 0.311, 0.405] remains the all-time best.
+
+**What did it teach us?** The peak is narrow in this 4D space — small perturbations from the W2 best coordinates produced a worse result. The shift in P3 (0.311 → 0.385) and P4 (0.405 → 0.304) relative to W2 appear to have caused the regression. ARD was enabled this week; with more data it should help identify which dimensions are critical. P3 has the weakest correlation with Y (r=−0.16) but moving it from 0.311 to 0.385 still hurt — suggesting there is a local interaction effect around the current best region.
+
+**Strategy for next week:** Return to near the W2 best: [0.46, 0.41, 0.31, 0.41]. Reduce ξ to 0.01 — exploit more tightly. The landscape around the current best is sharp; do not deviate more than ±0.05 per dimension from W2 coordinates.
+
+---
+
+### Function 5 — 4D Chemical Yield
+
+**Submitted:** [0.361600, 0.837400, 0.938600, 0.872400] → **Y = 1374.524**
+
+**Acquisition:** EI β=1.5, ξ=0.01, RBF kernel
+
+**Exploration or exploitation?** Exploitation — tight follow-on from W2 best.
+
+**Did it improve on the best?** **Yes — new all-time best.** Three consecutive weekly improvements: 50.44 → 1138.87 → 1374.52. Total gain from initial best: +26.2%.
+
+**What did it teach us?** The unimodal structure continues to reward tight exploitation. C1 has drifted slightly higher (0.224 → 0.284 → 0.362) across the three weeks while C3/C4 remain high (0.91/0.87). The peak may lie at slightly higher C1 than the initial best suggested, or the EI is finding a slightly different cross-section of a broad peak. Either way, the strategy is working — each week's result is better than the last.
+
+**Strategy for next week:** Switch to "mean" acquisition (pure exploitation, no exploration bonus). The unimodal structure is confirmed with high confidence. Submit near [0.38, 0.84, 0.94, 0.88] — continuing the gentle C1 upward drift while keeping C3/C4 high. Consider whether C2 can be nudged (currently stable at 0.837).
+
+---
+
+### Function 6 — 5D Cake Recipe
+
+**Submitted:** [0.380200, 0.480600, 0.559600, 0.724800, 0.169500] → **Y = -0.3837**
+
+**Acquisition:** EI β=1.96, ξ=0.02, Matérn 5/2
+
+**Exploration or exploitation?** Mixed — EI moved substantially in Flour (0.446 → 0.380) and Eggs (0.435 → 0.560) relative to W2.
+
+**Did it improve on the best?** **Yes — new all-time best.** Two consecutive portal improvements: -0.518 → -0.384 (+26%). Now 46% better than the initial best (-0.714).
+
+**What did it teach us?** The recipe landscape continues to reward a specific combination: moderate Flour (~0.38–0.45), moderate Sugar (~0.26–0.48), higher Eggs (~0.44–0.56), high Butter (~0.72), and low-moderate Milk (~0.16–0.17). The initial hypothesis that Sugar and Milk must be minimised has been contradicted — moderate Sugar (0.48 this week) still produced the best result. The GP is converging on a genuine peak region that is distinct from the initial best.
+
+**Strategy for next week:** Exploit tightly around W3 best. EI ξ=0.01. Target [0.37, 0.47, 0.57, 0.73, 0.17] — marginal increments in the improving directions. Butter and Milk appear stable; focus on whether Flour can be reduced further and Eggs raised slightly.
+
+---
+
+### Function 7 — 6D GBM Hyperparameters
+
+**Submitted:** [0.061100, 0.427900, 0.284300, 0.256300, 0.374400, 0.724200] → **Y = 1.9315**
+
+**Acquisition:** EI β=1.96, ξ=0.05, Matérn 5/2, ARD enabled
+
+**Exploration or exploitation?** Exploitation — similar to W2 best with modest adjustments.
+
+**Did it improve on the best?** No. Regression from 2.358 (W2) to 1.931 (−18%). The W2 submission [0.095, 0.365, 0.337, 0.317, 0.362, 0.721] remains the all-time best.
+
+**What did it teach us?** The primary difference between W2 and W3 is dim1 (n_estimators): 0.095 → 0.061 (lower in W3) and dim2 (learning_rate): 0.365 → 0.428 (higher in W3). The regression suggests the W2 combination sits in a narrow sweet spot — moving to higher learning rate and lower n_estimators simultaneously pushed outside the optimal region. Dim6 (regularisation) was nearly identical (0.721 vs 0.724), confirming that dimension is well-calibrated. ARD should be learning that dim1 and dim2 have short length-scales (sensitive) while dim5 is less critical.
+
+**Strategy for next week:** Return to near W2 best: [0.095, 0.365, 0.337, 0.317, 0.362, 0.721]. Reduce ξ to 0.01 to tighten exploitation. Try a tiny perturbation — only one dimension at a time from the known best: push dim1 slightly (0.095 → 0.08) to test whether even lower n_estimators helps.
+
+---
+
+### Function 8 — 8D ML Hyperparameters
+
+**Submitted:** [0.062400, 0.956200, 0.000800, 0.908300, 0.526900, 0.001700, 0.943300, 0.227600] → **Y = 7.3179**
+
+**Acquisition:** UCB β=3.5, ξ=0.1, Matérn 5/2, ARD enabled
+
+**Exploration or exploitation?** Aggressive exploration — β=3.5 pushed the GP UCB suggestion into a very different region. D2=0.956, D4=0.908, D6=0.002, D7=0.943 are all extreme values far from the W2 best.
+
+**Did it improve on the best?** No — significant regression. Dropped from 9.704 (W2) to 7.318 (−24.6%). Worst portal result for this function.
+
+**What did it teach us?** The aggressive exploration at β=3.5 was a mistake at this stage. The correlation analysis is unambiguous: D1 and D3 must be LOW, and W3's D1=0.062 and D3=0.001 respected this — but D2=0.956 and D4=0.908 being simultaneously very high was clearly wrong. The W2 best had D2=0.204 and D4=0.040, confirming that low D2 and D4 are also important. The RF surrogate notebook (`analysis/03_function8_rf_surrogate.ipynb`) should now be re-run with W3 included to reassess the updated correlation and feature importance rankings.
+
+**Strategy for next week:** Reduce β to 2.0 and switch to EI ξ=0.05. Exploit near the W2 best: [0.21, 0.20, 0.04, 0.04, 0.97, 0.07, 0.22, 0.06]. The updated RF notebook will provide the week 4 suggestion. Key constraints: D1 < 0.25, D2 < 0.30, D3 < 0.10, D4 < 0.10. Do not repeat the high-D2/D4 exploration.
+
+---
+
 *Reflections for subsequent weeks will be appended below.*

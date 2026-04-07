@@ -100,10 +100,11 @@ st.markdown("""
     font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; font-weight: 600;
     margin-right: 0.3rem;
   }
-  .pill-ucb { background: rgba(0,212,255,0.15); color: #00d4ff; }
-  .pill-ei  { background: rgba(16,185,129,0.15); color: #10b981; }
-  .pill-pi  { background: rgba(124,58,237,0.15); color: #a78bfa; }
-  .pill-var { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .pill-ucb  { background: rgba(0,212,255,0.15); color: #00d4ff; }
+  .pill-ei   { background: rgba(16,185,129,0.15); color: #10b981; }
+  .pill-pi   { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .pill-var  { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .pill-mean { background: rgba(239,68,68,0.15);  color: #f87171; }
 
   .section-label {
     font-family: 'JetBrains Mono', monospace;
@@ -269,9 +270,10 @@ FUNCTION_CONFIG = {
     1: {
         "dims": 2, "bounds": [(0.0,1.0)]*2,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
+        "y_transform": "arcsinh",
         "description": "2D contamination/radiation field",
         "dim_labels": ["x₁ (position)", "x₂ (position)"],
-        "notes": "Sparse non-zero regions suggest the signal is localised. UCB with beta=2.0 keeps exploration high early to avoid missing the signal entirely. Reduce beta to 1.0 after a non-zero reading.",
+        "notes": "Sparse non-zero regions suggest the signal is localised. UCB with beta=2.0 keeps exploration high early to avoid missing the signal entirely. Reduce beta to 1.0 after a non-zero reading. arcsinh Y-transform enabled: spreads near-zero values so the GP can learn from tiny magnitude differences.",
     },
     2: {
         "dims": 2, "bounds": [(0.0,1.0)]*2,
@@ -290,9 +292,10 @@ FUNCTION_CONFIG = {
     4: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
+        "ard": True,
         "description": "4D warehouse ML hyperparameter tuning",
         "dim_labels": ["Param 1", "Param 2", "Param 3", "Param 4"],
-        "notes": "Rough landscape with local optima — stay exploratory early. Dynamic environment means old observations may drift in value.",
+        "notes": "Rough landscape with local optima — stay exploratory early. Dynamic environment means old observations may drift in value. ARD enabled: P3 shows no significant correlation (r=−0.16, p=0.38) while P1/P4 dominate (r≈−0.50). ARD learns separate length-scales, effectively down-weighting P3.",
     },
     5: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
@@ -311,21 +314,23 @@ FUNCTION_CONFIG = {
     7: {
         "dims": 6, "bounds": [(0.0,1.0)]*6,
         "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.05,
+        "ard": True,
         "description": "6D gradient boosting hyperparameters",
         "dim_labels": [
             "Dim 1: n_estimators [0–1]", "Dim 2: learning_rate [0–1]",
             "Dim 3: max_depth [0–1]",    "Dim 4: subsample [0–1]",
             "Dim 5: max_features [0–1]", "Dim 6: regularisation [0–1]",
         ],
-        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. EI appropriate given structured landscape. Key: learning_rate (dim2) and n_estimators (dim1) are inversely related.",
+        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. EI appropriate given structured landscape. Key: learning_rate (dim2) and n_estimators (dim1) are inversely related. ARD enabled: known that dim1/dim2 dominate while dim5 (max_features) is less critical.",
         "informed_start": [0.333, 0.310, 0.250, 0.800, 0.800, 0.050],
     },
     8: {
         "dims": 8, "bounds": [(0.0,1.0)]*8,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.5, "xi": 0.1,
+        "ard": True,
         "description": "8D complex black-box (ML hyperparameters)",
         "dim_labels": [f"Param {i+1}" for i in range(8)],
-        "notes": "Hardest function. GP at 8D will be uncertain — accept this. High beta UCB keeps exploration broad. Focus on process quality in reflections rather than absolute score.",
+        "notes": "Hardest function. GP at 8D will be uncertain — accept this. High beta UCB keeps exploration broad. ARD enabled: D1 and D3 have strong negative correlation (r≈−0.65) and dominate RF importance; ARD learns short length-scales for these vs long for D6/D8.",
     },
 }
 
@@ -407,12 +412,54 @@ def save_history(history):
 # =============================================================================
 # GP + ACQUISITION
 # =============================================================================
-def build_gp(kernel_type="matern"):
+
+# --- Y-transform helpers (applied in suggest_next; visualization uses raw Y) ---
+def _yt_scale(Y: np.ndarray) -> float:
+    """Robust IQR-based scale for arcsinh transform, bounded away from 0."""
+    q75, q25 = np.percentile(Y, [75, 25])
+    s = (q75 - q25) / 1.35  # ≈ std for Normal
+    return float(max(s, np.abs(Y).mean() * 0.1, 1e-10))
+
+def apply_y_transform(Y: np.ndarray, method: str | None, scale: float | None = None):
+    """Transform Y before GP fitting. Returns (Y_t, scale_used).
+
+    arcsinh: sinh⁻¹(Y/s) — symmetric log-like, defined for all reals.
+             Spreads near-zero values that differ only in tiny magnitude,
+             which is the failure mode for F1 where all outputs ≈ 0.
+    log1p:   log(1+Y) — for all-positive Y (monotone, reduces right skew).
+    """
+    if method == "arcsinh":
+        s = scale if scale is not None else _yt_scale(Y)
+        return np.arcsinh(Y / s), s
+    if method == "log1p":
+        s = 1.0
+        return np.log1p(np.clip(Y, 0, None)), s
+    return Y.copy(), 1.0
+
+def invert_y_transform(Y_t: np.ndarray, method: str | None, scale: float) -> np.ndarray:
+    """Inverse of apply_y_transform — restores original Y scale for display."""
+    if method == "arcsinh":
+        return np.sinh(Y_t) * scale
+    if method == "log1p":
+        return np.expm1(Y_t)
+    return Y_t
+
+
+def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False):
+    """Build a GP with isotropic or ARD kernel.
+
+    ard=True: use a separate length-scale per dimension (Automatic Relevance
+    Determination). The GP marginal-likelihood optimizer then assigns short
+    length-scales to sensitive dimensions and long ones to irrelevant dims,
+    effectively learning which inputs matter.
+    """
+    ls = np.ones(dims) if (ard and dims > 1) else 1.0
     if kernel_type == "rbf":
-        kernel = C(1.0) * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 10.0))
+        kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=(1e-2, 10.0))
     else:
-        kernel = C(1.0) * Matern(length_scale=1.0, nu=2.5, length_scale_bounds=(1e-2, 10.0))
+        kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=(1e-2, 10.0))
     return GaussianProcessRegressor(kernel=kernel, alpha=1e-6, normalize_y=True, n_restarts_optimizer=5)
+
 
 def compute_acquisition(acq, mean, std, y_max, beta, xi):
     if acq == "ucb":
@@ -426,6 +473,10 @@ def compute_acquisition(acq, mean, std, y_max, beta, xi):
     if acq == "pi":
         z = (mean - y_max - xi) / (std + 1e-12)
         return norm.cdf(z)
+    if acq == "mean":
+        # Pure exploitation: argmax of GP posterior mean (no exploration bonus).
+        # Appropriate for unimodal functions (e.g. F5) once the peak region is known.
+        return mean
     return mean
 
 def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_override=None,
@@ -469,17 +520,25 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
     # Extreme magnitudes (e.g. typo 1e-185 or huge scores) destabilise the GP kernel matrix.
     Y = np.clip(Y, -1e12, 1e12)
 
-    gp = build_gp(cfg["kernel"])
-    gp.fit(X, Y)
+    # Optional Y-transform (e.g. arcsinh for F1's near-zero landscape)
+    y_transform = cfg.get("y_transform")
+    Y_fit, yt_scale = apply_y_transform(Y, y_transform)
+    y_max_fit = Y_fit.max()
+
+    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
+    gp.fit(X, Y_fit)
 
     n_cand = 5000
     candidates = np.random.uniform(0, 1, (n_cand, cfg["dims"]))
     mean, std = gp.predict(candidates, return_std=True)
-    y_max = Y.max()
-    scores = compute_acquisition(acq, mean, std, y_max, beta, xi)
+    scores = compute_acquisition(acq, mean, std, y_max_fit, beta, xi)
     best = np.argmax(scores)
     suggestion = np.clip(candidates[best], 0.0, 1.0)
-    return [round(float(v), 6) for v in suggestion], float(mean[best]), float(std[best])
+
+    # Return mean/std in original Y scale for display
+    mean_display = float(invert_y_transform(np.array([mean[best]]), y_transform, yt_scale)[0])
+    std_display  = float(std[best] * yt_scale) if y_transform == "arcsinh" else float(std[best])
+    return [round(float(v), 6) for v in suggestion], mean_display, std_display
 
 # =============================================================================
 # CHART HELPERS
@@ -554,7 +613,9 @@ def _prepare_gp(fn_id, history, initial_data):
     Y = np.clip(Y, -1e12, 1e12)
     if len(Y) < 2:
         return None
-    gp = build_gp(cfg["kernel"])
+    # Visualization uses raw Y (no transform) so plots stay in interpretable units.
+    # ARD is applied so per-dimension length-scales are learned correctly.
+    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
     gp.fit(X, Y)
     best_x = X[np.argmax(Y)].copy()
     return gp, X, Y, best_x
@@ -1095,7 +1156,9 @@ with left_col:
         best = f"{max(fn_h['Y']):.4f}" if fn_h["Y"] else "—"
         is_active = st.session_state.active_fn == fn_id
         acq = st.session_state.acq_overrides.get(fn_id, cfg["acquisition"]).upper()
-        pill_cls = f"pill-{acq.lower()}" if acq.lower() in ("ucb","ei","pi") else "pill-var"
+        _pill_map = {"ucb": "pill-ucb", "ei": "pill-ei", "pi": "pill-pi",
+                     "variance": "pill-var", "mean": "pill-mean"}
+        pill_cls = _pill_map.get(acq.lower(), "pill-var")
 
         card_cls = "fn-card fn-card-active" if is_active else "fn-card"
         st.markdown(f"""
@@ -1195,13 +1258,17 @@ with right_col:
 
         with q_right:
             st.markdown("**Acquisition Function**")
+            ACQ_OPTIONS = ["ucb", "ei", "pi", "variance", "mean"]
             acq_choice = st.selectbox(
-                "Method", ["ucb", "ei", "pi", "variance"],
-                index=["ucb","ei","pi","variance"].index(
+                "Method", ACQ_OPTIONS,
+                index=ACQ_OPTIONS.index(
                     st.session_state.acq_overrides.get(fn_id, cfg["acquisition"])
+                    if st.session_state.acq_overrides.get(fn_id, cfg["acquisition"]) in ACQ_OPTIONS
+                    else cfg["acquisition"]
                 ),
                 key=f"acq_{fn_id}",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                help="mean = pure exploitation (argmax GP posterior mean). Best for unimodal functions once the peak region is found.",
             )
             st.session_state.acq_overrides[fn_id] = acq_choice
 
@@ -1267,11 +1334,18 @@ with right_col:
                 """, unsafe_allow_html=True)
                 if gp_info and gp_info[0] is not None:
                     m, s = gp_info
+                    yt = cfg.get("y_transform")
+                    ard_on = cfg.get("ard", False)
+                    badges = ""
+                    if yt:
+                        badges += f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(239,68,68,0.12);color:#f87171;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.4rem">{yt}</span>'
+                    if ard_on:
+                        badges += '<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(16,185,129,0.12);color:#10b981;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.3rem">ARD</span>'
                     st.markdown(f"""
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.5rem">
                       <div style="background:#0a0e1a;border:1px solid #1e2d45;border-radius:6px;padding:0.4rem;text-align:center">
                         <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:#00d4ff;font-weight:600">{m:.4f}</div>
-                        <div style="font-size:0.62rem;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">GP Mean</div>
+                        <div style="font-size:0.62rem;color:#64748b;text-transform:uppercase;letter-spacing:0.06em">GP Mean{badges}</div>
                       </div>
                       <div style="background:#0a0e1a;border:1px solid #1e2d45;border-radius:6px;padding:0.4rem;text-align:center">
                         <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:#7c3aed;font-weight:600">{s:.4f}</div>
