@@ -535,3 +535,65 @@ This cross-validates the ARD kernel's automatic relevance findings independently
 **Continue with the GP as the sole production surrogate for F8.** No change to `FUNCTION_CONFIG[8]`. The GBM analysis is retained as a validation tool only — confirming D1 and D3 are the dimensions that must stay low.
 
 **W5 strategy implication:** the GP's UCB suggestion explores around D3≈0.23 (higher than the W2 best at D3=0.04), which the GP is uncertain about. A safer option is tight exploitation within the confirmed neighbourhood of the W2 best `[0.21, 0.20, 0.04, 0.04, 0.97, 0.07, 0.22, 0.06]`, perturbing D6 and D7 (both surrogates agree these have low sensitivity and therefore offer the most information gain per query).
+
+---
+
+## Neural Networks and CNNs as BBO Surrogates — Viability Analysis (W4–W5)
+
+**Date:** 2026-04-08 · **Applies to:** All functions · **Notebook:** `analysis/05_nn_surrogate_analysis.ipynb`
+
+### Can a CNN be used for any function?
+
+**No, for all eight functions.** CNNs exploit local spatial correlation in grid-arranged inputs (images, time-series). Their defining inductive bias — a small sliding kernel detecting local patterns — is only useful when neighbouring input dimensions are spatially related.
+
+- **F3–F8:** inputs are unordered hyperparameters, concentrations, or recipe ingredients. Dimension indices have no spatial meaning; shuffling them would not change the function value. CNNs provide zero advantage over a dense MLP and add spatial structure that does not exist.
+- **F1–F2:** these are genuinely 2D spatial inputs (position in a [0,1]² field). A CNN *could* in principle exploit spatial smoothness, but the GP's Matérn kernel already models spatial correlation analytically and does so without needing training data to learn the convolution weights. At n=14, a CNN would require a discretised grid with hundreds of cells and corresponding observations. The GP is provably more appropriate at this scale.
+
+### Can a standard MLP be used?
+
+**Not at current sample sizes.** The fundamental problem is the parameter-to-observation ratio:
+
+| Function | n | MLP(16→8) params | Ratio (params/n) |
+|---|---|---|---|
+| F1–F2 | 14 | 193 | 13.8× |
+| F3 | 19 | 209 | 11.0× |
+| F4–F5 | 24 | 225 | 9.4× |
+| F7 | 33 | 257 | 7.8× |
+| F8 | 43 | 289 | 6.7× |
+
+Even the smallest two-hidden-layer MLP (16 → 8 units) has 6–14× more free parameters than training observations for every function. An ARD GP for F8 has just **9 hyperparameters** — optimised analytically via marginal-likelihood maximisation, not gradient descent on MSE.
+
+### Empirical comparison — F7 (n=33, 6D) and F8 (n=43, 8D)
+
+LOO cross-validation results from `analysis/05_nn_surrogate_analysis.ipynb`:
+
+| Surrogate | F7 LOO R² | F8 LOO R² | F8 95% PI coverage |
+|---|---|---|---|
+| GP (ARD Matérn 5/2) | **0.563** | **0.985** | **0.977** |
+| MLP (16→8) | −0.091 | 0.887 | N/A |
+| MLP (32→16) | 0.199 | 0.865 | N/A |
+| Deep Ensemble K=10 | −0.417 | 0.906 | 0.907 |
+
+**F7 is decisive:** all NN variants fail completely. The ensemble LOO R² of −0.417 means it predicts worse than the training mean. F7's output range is [0.003, 2.358] with a skewed distribution, and at n=33 with 6D inputs, none of the MLPs generalise.
+
+**F8 is more nuanced:** the Deep Ensemble reaches R²=0.906, not catastrophically bad. But the GP's 0.985 is still 8 percentage points higher and its uncertainty calibration (0.977 vs target 0.950) is near-perfect, compared to the ensemble's 0.907. Even the best-case NN is clearly outperformed.
+
+### Why does the GP win at this data scale?
+
+1. **Parameter efficiency.** 9 GP hyperparameters vs 289 MLP parameters for F8. The GP achieves higher accuracy with dramatically fewer degrees of freedom.
+
+2. **Marginal-likelihood optimisation.** GP hyperparameters are fitted by maximising the log-marginal-likelihood, which naturally balances fit quality against model complexity — a built-in form of regularisation. MLP gradient descent on MSE has no such analytical safeguard.
+
+3. **Principled uncertainty.** GP posterior variance is derived from first principles and has guaranteed properties. Deep Ensemble uncertainty is an empirical spread across K independently trained models — it underestimates uncertainty in sparsely sampled regions because all K models extrapolate the same learned function confidently.
+
+### Learning curve — when would a NN become viable?
+
+The learning curves (Section 6 of the notebook) show that a GP consistently outperforms the MLP across all tested training sizes (n=8 to 33). A genuine crossover would require approximately **n ≥ 100–200 observations in 8D** for a properly regularised MLP — roughly 3–5× the current F8 dataset size.
+
+### Most promising future direction: Deep Kernel Learning
+
+If sample sizes grow beyond ~60 observations for any function, the most promising NN-based approach would be **Deep Kernel Learning (DKL)**: train a small NN as a feature extractor (ℝ^d → ℝ^k, where k < d), then fit a GP on those learned features. The NN learns a problem-specific kernel; the GP retains calibrated uncertainty. For F8 this could learn a 3–4D feature space separating the high-Y peak (D1 and D3 low, D5 high) from the rest. Requires GPyTorch (not currently available).
+
+### Decision
+
+**No change to any surrogate configuration.** The GP remains the production surrogate for all eight functions. The NN analysis confirms the GP choice is correct, not conservative.
