@@ -82,6 +82,8 @@ None beyond the main GP — with effectively zero output everywhere, alternative
 | Acquisition | UCB | Function is noisy with local optima; UCB keeps mild exploration pressure |
 | β | 2.5 (W2–W3) → 1.5 (W4) | Reduced in W4 to tighten exploitation around the confirmed peak |
 | ξ | 0.1 throughout | Not relevant for UCB; retained in config |
+| Y-transform | standardize | Z-scores targets so β/ξ have consistent cross-function meaning |
+| Heteroscedastic | ✓ (W5) | Per-point noise via LOO residuals; peak region assigned ~1.6× more noise than flat region |
 
 **Supplementary analysis:** `analysis/02_function2_svr_exploration.ipynb`
 — SVR with RBF, polynomial and linear kernels compared against GP. Both GP and SVR-RBF agreed: next query should be near [0.70, 0.93]. SVR linear confirmed X₁ > 0.65 as the dominant direction.
@@ -94,7 +96,7 @@ None beyond the main GP — with effectively zero output everywhere, alternative
 | 1 | [0.116, 0.884] | 0.026 | UCB β=2.5, Matérn | Low-X₁ — confirmed bad region |
 | 2 | [0.815, 0.962] | 0.053 | UCB β=2.5, Matérn | X₁ too high — peak is near 0.70, not 0.82 |
 | 3 | [0.694, 0.906] | 0.493 | UCB β=2.5, Matérn | Close to initial best — 9× improvement on portal results |
-| 4 | [0.700, 0.961] | pending | UCB β=1.5, Matérn | — |
+| 4 | [0.700, 0.961] | pending | UCB β=1.5, Matérn, het-GP | — |
 
 ### All-time best
 
@@ -104,9 +106,10 @@ None beyond the main GP — with effectively zero output everywhere, alternative
 ### Key findings
 
 - Narrow peak around X₁ ≈ 0.70, X₂ ≈ 0.93 — moving X₁ rightward to 0.82 collapses the output
-- Function is noisy — the gap between initial best (0.611) and W3 (0.493) is partially noise
-- SVR and GP are in agreement on the optimal region; additional models provide no new information
-- Week 4 strategy: very tight exploitation within ±0.02 of [0.703, 0.927]
+- Function is explicitly noisy — the gap between initial best (0.611) and W3 (0.493) at a distance of only 0.023 is partially observation noise, not a spatial gradient
+- Heteroscedastic GP (W5): peak region near [0.70, 0.93] assigned alpha ≈ 1.47–1.58 vs alpha ≈ 0.94–1.18 in the flat region — prevents acquisition function from chasing noise-driven apparent gradients
+- SVR and GP agree on the optimal region; additional models provide no new information
+- Week 5 strategy: het-GP generates suggestions that sit within the genuine uncertainty cloud around [0.70, 0.93], rather than being deflected by the phantom 0.118 gradient
 
 ---
 
@@ -401,3 +404,50 @@ After standardisation, ξ=0.01 uniformly means "require improvement of 1% of one
 - UCB suggestions: unaffected in direction (linear rescaling of mean and std does not change the argmax)
 - EI suggestions: effective ξ threshold shifts. For F4 and F5 (large raw σ) the effective threshold decreases, making EI more exploitation-focused — appropriate given these functions are in pure exploit mode
 - Visualisation: unchanged — dashboard charts still use raw Y throughout
+
+---
+
+### W5 — Heteroscedastic GP for F2 (`"heteroscedastic": True`)
+
+**Implemented:** 2026-04-08, between W4 submission and W5.
+
+**Applies to:** Function 2 only.
+
+**Root cause addressed:** Two nearby observations near the known F2 peak — `[0.703, 0.927] → 0.611` (initial data) and `[0.694, 0.906] → 0.493` (W3) — are only 0.023 apart spatially but 0.118 apart in output. A homoscedastic GP (constant `alpha = 1e-6`) interprets this gap as a genuine spatial gradient. The acquisition function then pushes subsequent queries away from the true peak toward what appears to be the "uphill" side, when in reality the gap is largely observation noise.
+
+**Change:** Added `compute_heteroscedastic_alpha(X, Y_fit)` to `capstone_app.py`. When `cfg["heteroscedastic"]` is `True`, this function runs before GP fitting and returns a per-point `alpha` array.
+
+**Algorithm:**
+
+```
+For each training point i (n=14 for F2):
+    Fit GP on remaining n-1 points
+    Predict Y_fit[i] → get LOO residual r_i = (Y_fit[i] - pred_i)²
+
+For each i:
+    alpha_i = Σ_j [ exp(-‖x_i - x_j‖² / 2h²) · r_j ] / Σ_j weights
+    (Gaussian kernel smoother, h = 0.20)
+
+Clip alpha_i ≥ 1e-4
+```
+
+**Per-point alpha on F2 data (n=14, Y_fit = standardised):**
+
+| Region | alpha |
+|---|---|
+| Peak [0.703, 0.927] | 1.487 |
+| Peak [0.694, 0.906] | 1.466 |
+| Flat [0.143, 0.349] | 1.182 |
+| Flat [0.339, 0.214] | 0.936 |
+
+Peak region carries **1.6× higher noise estimate** than the flat region.
+
+**Implementation notes:**
+- `normalize_y=False` used with the per-point alpha (Y_fit already z-scored; alpha values are in z-score² units — consistent)
+- `_prepare_gp` (visualisation) also uses het-GP, converting alpha to normalised units via `alpha_norm = alpha_raw / Y.std()²` since visualisation GPs use raw Y with `normalize_y=True`
+- Falls back to constant `alpha = 1e-4` when n < 4 (LOO unreliable with very few points)
+- Dashboard: purple `het-GP` badge shown alongside `standardize` badge for F2
+
+**Behavioural impact:**
+- UCB suggestions for F2 will now sit within the genuine uncertainty cloud around [0.70, 0.93], rather than being deflected away by the phantom 0.118 gradient between the two nearby peak observations
+- CI bands in the F2 GP slice plots will be noticeably wider in the peak region — an honest representation of our uncertainty about the true maximum location

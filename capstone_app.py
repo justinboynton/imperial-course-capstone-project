@@ -279,9 +279,10 @@ FUNCTION_CONFIG = {
         "dims": 2, "bounds": [(0.0,1.0)]*2,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.5, "xi": 0.1,
         "y_transform": "standardize",
+        "heteroscedastic": True,
         "description": "2D noisy black-box log-likelihood",
         "dim_labels": ["x₁", "x₂"],
-        "notes": "Explicitly noisy with local optima. Matern kernel handles rougher functions. High beta UCB resists premature exploitation of noisy early readings.",
+        "notes": "Explicitly noisy with local optima. Matern kernel handles rougher functions. High beta UCB resists premature exploitation of noisy early readings. Heteroscedastic GP enabled: per-point noise estimated via LOO residuals + kernel smoothing. The peak region near [0.70, 0.93] shows σ≈0.06 variation between neighbouring points — the het-GP assigns higher noise there, preventing the acquisition function from chasing noise-driven apparent gradients.",
     },
     3: {
         "dims": 3, "bounds": [(0.0,1.0)]*3,
@@ -467,7 +468,7 @@ def invert_y_transform(Y_t: np.ndarray, method: str | None, scale) -> np.ndarray
 
 
 def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
-             normalize_y: bool = True):
+             normalize_y: bool = True, alpha=1e-6):
     """Build a GP with isotropic or ARD kernel.
 
     ard=True: use a separate length-scale per dimension (Automatic Relevance
@@ -478,14 +479,74 @@ def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
     normalize_y: set to False when Y has already been transformed by
     apply_y_transform (e.g. standardize, arcsinh) to avoid double-normalising.
     When no y_transform is active, True is the safe default.
+
+    alpha: float or array-like (n_samples,). When an array is passed (from
+    compute_heteroscedastic_alpha) each training point gets its own noise
+    variance, giving a heteroscedastic GP.
     """
     ls = np.ones(dims) if (ard and dims > 1) else 1.0
     if kernel_type == "rbf":
         kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=(1e-2, 10.0))
     else:
         kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=(1e-2, 10.0))
-    return GaussianProcessRegressor(kernel=kernel, alpha=1e-6, normalize_y=normalize_y,
+    return GaussianProcessRegressor(kernel=kernel, alpha=alpha, normalize_y=normalize_y,
                                     n_restarts_optimizer=5)
+
+
+def compute_heteroscedastic_alpha(
+    X: np.ndarray,
+    Y: np.ndarray,
+    base_alpha: float = 1e-4,
+    bandwidth: float = 0.20,
+) -> np.ndarray:
+    """Per-point noise variance via leave-one-out (LOO) residuals + kernel smooth.
+
+    Algorithm
+    ---------
+    1. For each training point i, fit a GP on the remaining n-1 points and
+       predict Y_i. The squared prediction error is an out-of-sample noise
+       estimate for that region of the input space.
+    2. Apply a Gaussian kernel smoother (bandwidth in [0,1] input units) to
+       spread the estimate to neighbouring points, avoiding single-spike alphas.
+    3. Clip to base_alpha so the GP kernel matrix remains numerically PSD.
+
+    The returned array is ready to pass as the `alpha` argument of
+    GaussianProcessRegressor.  It should be computed on the *transformed*
+    Y_fit (e.g. after standardise) so its units match the GP target space.
+
+    Falls back to a constant array when n < 4 (LOO unreliable with so few pts).
+    """
+    n = len(X)
+    if n < 4:
+        return np.full(n, base_alpha)
+
+    loo_res_sq = np.zeros(n)
+    for i in range(n):
+        mask = np.ones(n, dtype=bool)
+        mask[i] = False
+        kernel_loo = C(1.0) * Matern(length_scale=1.0, nu=2.5)
+        gp_loo = GaussianProcessRegressor(
+            kernel=kernel_loo,
+            alpha=base_alpha,
+            normalize_y=True,
+            n_restarts_optimizer=1,
+        )
+        gp_loo.fit(X[mask], Y[mask])
+        pred_i = float(gp_loo.predict(X[i : i + 1])[0])
+        loo_res_sq[i] = (float(Y[i]) - pred_i) ** 2
+
+    # Gaussian kernel smoother: each point's alpha is a weighted average of
+    # its neighbours' LOO residuals, so nearby noisy points raise each other's
+    # noise estimate rather than creating isolated spikes.
+    alphas = np.zeros(n)
+    h2 = 2.0 * bandwidth ** 2
+    for i in range(n):
+        d2 = np.sum((X - X[i]) ** 2, axis=1)
+        w = np.exp(-d2 / h2)
+        w /= w.sum() + 1e-12
+        alphas[i] = float(np.dot(w, loo_res_sq))
+
+    return np.clip(alphas, base_alpha, None)
 
 
 def compute_acquisition(acq, mean, std, y_max, beta, xi):
@@ -552,10 +613,21 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
     Y_fit, yt_scale = apply_y_transform(Y, y_transform)
     y_max_fit = Y_fit.max()
 
-    # Don't double-normalise: if a y_transform is active it already standardises Y;
-    # only fall back to GP-internal normalisation when no transform is in use.
-    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
-                  normalize_y=(y_transform is None))
+    # Heteroscedastic GP: compute per-point noise from LOO residuals on Y_fit
+    # (already standardised), then build the GP with that alpha array.
+    # normalize_y must be False here — Y_fit is already in z-score units and
+    # the alpha values are in the same z-score units; double-normalising would
+    # divide both the targets and alphas by an extra factor.
+    if cfg.get("heteroscedastic") and len(Y_fit) >= 4:
+        alpha_arr = compute_heteroscedastic_alpha(X, Y_fit)
+        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+                      normalize_y=False, alpha=alpha_arr)
+    else:
+        # Don't double-normalise: if a y_transform is active it already
+        # standardises Y; only fall back to GP-internal normalisation when
+        # no transform is in use.
+        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+                      normalize_y=(y_transform is None))
     gp.fit(X, Y_fit)
 
     n_cand = 5000
@@ -650,8 +722,18 @@ def _prepare_gp(fn_id, history, initial_data):
     if len(Y) < 2:
         return None
     # Visualization uses raw Y (no transform) so plots stay in interpretable units.
-    # ARD is applied so per-dimension length-scales are learned correctly.
-    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
+    # For heteroscedastic functions, convert LOO alpha from raw-Y² units to
+    # the normalized units that the GP uses internally (normalize_y=True divides
+    # targets by Y.std(), so the kernel operates on a unit-variance signal and
+    # alpha must be scaled by 1/Y.std()² to match).
+    if cfg.get("heteroscedastic") and len(Y) >= 4:
+        y_std = max(float(np.std(Y)), 1e-8)
+        alpha_raw = compute_heteroscedastic_alpha(X, Y)
+        alpha_norm = alpha_raw / (y_std ** 2)
+        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+                      normalize_y=True, alpha=alpha_norm)
+    else:
+        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
     gp.fit(X, Y)
     best_x = X[np.argmax(Y)].copy()
     return gp, X, Y, best_x
@@ -1372,6 +1454,7 @@ with right_col:
                     m, s = gp_info
                     yt = cfg.get("y_transform")
                     ard_on = cfg.get("ard", False)
+                    het_on = cfg.get("heteroscedastic", False)
                     badges = ""
                     if yt:
                         yt_color = "#f87171" if yt == "arcsinh" else "#fbbf24"
@@ -1379,6 +1462,8 @@ with right_col:
                         badges += f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:{yt_bg};color:{yt_color};border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.4rem">{yt}</span>'
                     if ard_on:
                         badges += '<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(16,185,129,0.12);color:#10b981;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.3rem">ARD</span>'
+                    if het_on:
+                        badges += '<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(139,92,246,0.12);color:#8b5cf6;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.3rem">het-GP</span>'
                     st.markdown(f"""
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.5rem">
                       <div style="background:#0a0e1a;border:1px solid #1e2d45;border-radius:6px;padding:0.4rem;text-align:center">

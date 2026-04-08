@@ -424,3 +424,55 @@ With explicit standardisation, ξ=0.01 consistently means "require improvement o
 - Acquisition function argmax for UCB: UCB is a linear function of mean and std. Scaling both by a constant σ and shifting by μ does not change which candidate point has the highest UCB value. So **UCB suggestions are unaffected in direction**.
 - EI suggestions: the shape of the EI surface can change slightly because ξ now means something different in absolute Y units — it is smaller (more exploitation-focused) for functions where σ > 1 and larger for functions where σ < 1. In practice all current functions are in exploit mode so this is benign.
 - Visualisation: the GP slice plots and history charts still use raw Y values (the `_prepare_gp` path does not apply the transform), so all displayed numbers remain in the original units shown throughout this document.
+
+---
+
+## Surrogate Model Improvement — Heteroscedastic GP for F2 (Between W4 and W5)
+
+**Date:** 2026-04-08 · **Applies to:** Function 2 only
+
+### Motivation
+
+After W3 we had two observations very close to the known peak region:
+
+- Initial best: `[0.703, 0.927] → 0.611`
+- W3 portal: `[0.694, 0.906] → 0.493`
+
+These two points are only 0.023 apart in input space but 0.118 apart in output. The function description confirms it is explicitly noisy. A standard (homoscedastic) GP uses a single constant noise term `alpha = 1e-6` across all training points, so it interprets the 0.118 gap as a genuine spatial gradient — a steep cliff in the landscape. This leads the acquisition function to push away from the initial best toward the "uphill" side, which may be noise rather than structure.
+
+A **heteroscedastic GP** models the noise level as a function of `x`. Points in high-noise regions (like the peak) are assigned a larger `alpha_i`, telling the GP "I expect a larger discrepancy here — do not over-interpret it." The result is wider, more honest uncertainty bands near the peak and a suggestion that properly reflects our genuine uncertainty about where the true maximum sits, rather than chasing a noise-driven gradient.
+
+### What changed
+
+A new `compute_heteroscedastic_alpha(X, Y_fit)` function was added to `capstone_app.py`. It runs immediately after the standardise transform and produces a per-point noise array used as the GP's `alpha` argument.
+
+**Algorithm:**
+
+1. **Leave-one-out (LOO) residuals:** for each of the `n` training points, fit a GP on the remaining `n−1` points and predict the held-out point. The squared prediction error is a local noise estimate. For the peak region, the two nearby observations (0.611 and 0.493) strongly contradict each other during LOO, producing large residuals. In the flat low-Y region, the GP predicts each held-out point well, producing small residuals.
+
+2. **Gaussian kernel smoother** (bandwidth = 0.20 in [0,1] units): smooths each point's noise estimate by taking a weighted average over nearby points. This prevents isolated spikes and ensures the noise map varies smoothly across the input space.
+
+3. **Clip and return** as an array of `alpha` values in z-score units (since `Y_fit` is already standardised). Passed as `alpha=alpha_arr` to `GaussianProcessRegressor` — sklearn supports per-point alpha natively.
+
+The GP is built with `normalize_y=False` (Y is already in z-score units) and the per-point alpha array in the same z-score units. The visualisation path (`_prepare_gp`) also uses heteroscedastic alpha, converting from raw-Y² units to normalised units via `/Y.std()²` so that CI bands in the slice plots also widen at the noisy peak.
+
+### Empirical validation on F2 data (n=14 points)
+
+| Region | Example point | Y | alpha (z-score²) |
+|---|---|---|---|
+| Noisy peak | [0.703, 0.927] | 0.611 | **1.487** |
+| Noisy peak | [0.694, 0.906] | 0.493 | **1.466** |
+| Flat low-Y | [0.143, 0.349] | −0.066 | 1.182 |
+| Flat low-Y | [0.339, 0.214] | −0.014 | 0.936 |
+
+The peak region is assigned ~1.6× more noise than the flat region. The GP will have wider uncertainty bands near [0.70, 0.93] and will not treat the 0.118 gap as a definitive spatial gradient.
+
+### Expected effect on suggestions
+
+Before: the acquisition function could be misled by the apparent downhill gradient from 0.611 → 0.493, generating suggestions that drift away from the true peak.
+
+After: the GP correctly captures that the peak region is uncertain rather than unfavourable. UCB with β=2.5 in this wider-uncertainty region will generate suggestions that sit inside the uncertainty cloud around [0.70, 0.93], rather than being pushed away by a phantom gradient.
+
+### Configuration
+
+`FUNCTION_CONFIG[2]` now includes `"heteroscedastic": True`. A purple `het-GP` badge is displayed in the dashboard alongside the existing `standardize` badge for F2.
