@@ -383,3 +383,44 @@ One entry per function per week following the challenge format.
 ---
 
 *Reflections for subsequent weeks will be appended below.*
+
+---
+
+## Surrogate Model Improvement — Output Standardisation (Between W3 and W4)
+
+**Date:** 2026-04-08 · **Applies to:** All functions (F2–F8; F1 already had arcsinh transform)
+
+### What changed
+
+A `"standardize"` Y-transform was added to the GP fitting pipeline in `capstone_app.py` and applied to all functions except F1. Before fitting, the full training set Y values (initial data + portal submissions) are z-scored: `Y_fit = (Y − μ) / σ`. The GP is then fitted on this standardised target instead of raw Y. When displaying the GP mean and std in the dashboard, the transform is reversed so numbers remain interpretable in original units.
+
+The existing `normalize_y=True` setting inside scikit-learn's `GaussianProcessRegressor` was changed to `normalize_y=False` whenever a Y-transform is active, preventing the GP from applying a second z-score on top of the explicit one.
+
+### Why this was necessary
+
+**The acquisition function runs in raw Y units** — the GP's `predict` method undoes its internal normalisation before returning values, so `mean` and `std` come back in whatever scale was passed to `fit`. This meant:
+
+- For F4 (Y range [−32.6, −1.2]), the W1 outlier at −21.254 had a z-score of roughly −3.7 in the raw space. The kernel hyperparameter optimisation was distorted by this single catastrophic point.
+- For F5 (Y range [50, 1374]), ξ=0.01 in raw EI meant "improve by 0.01 over a baseline of 1374" — correct in intent (pure exploitation) but only by coincidence of scale, not by principled setting.
+- For F7 and F8, β and ξ had implicitly different meanings because the Y ranges (0–2.4 and 5.6–9.7 respectively) differ by 5×.
+
+With explicit standardisation, ξ=0.01 consistently means "require improvement of 0.01 standard deviations above the current best" across all functions. β similarly has a consistent meaning in terms of how many standard deviations of GP uncertainty to add.
+
+### Function-level impact
+
+| Fn | Raw Y range | Key benefit of standardise |
+|----|-------------|---------------------------|
+| F1 | ≈0 everywhere | No change — arcsinh already applied |
+| F2 | [−0.07, 0.61] | Consistent ξ interpretation; minor numerical benefit |
+| F3 | [−0.40, −0.018] | ξ=0.02 now means a fixed fraction of σ, not 2% of a −0.4 range |
+| F4 | [−32.6, −1.2] | **Primary beneficiary** — outlier at −21.254 no longer distorts kernel fit |
+| F5 | [50, 1374] | **Primary beneficiary** — 27× range compressed to unit variance; EI now numerically stable |
+| F6 | [−2.57, −0.38] | Moderate benefit; ξ meaning standardised |
+| F7 | [0.003, 2.36] | β and ξ now on same scale as other functions |
+| F8 | [5.59, 9.70] | Narrow raw range but positive-only — zero-mean GP prior now correctly centred |
+
+### What this does not change
+
+- Acquisition function argmax for UCB: UCB is a linear function of mean and std. Scaling both by a constant σ and shifting by μ does not change which candidate point has the highest UCB value. So **UCB suggestions are unaffected in direction**.
+- EI suggestions: the shape of the EI surface can change slightly because ξ now means something different in absolute Y units — it is smaller (more exploitation-focused) for functions where σ > 1 and larger for functions where σ < 1. In practice all current functions are in exploit mode so this is benign.
+- Visualisation: the GP slice plots and history charts still use raw Y values (the `_prepare_gp` path does not apply the transform), so all displayed numbers remain in the original units shown throughout this document.

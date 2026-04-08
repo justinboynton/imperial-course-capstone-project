@@ -278,6 +278,7 @@ FUNCTION_CONFIG = {
     2: {
         "dims": 2, "bounds": [(0.0,1.0)]*2,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.5, "xi": 0.1,
+        "y_transform": "standardize",
         "description": "2D noisy black-box log-likelihood",
         "dim_labels": ["x₁", "x₂"],
         "notes": "Explicitly noisy with local optima. Matern kernel handles rougher functions. High beta UCB resists premature exploitation of noisy early readings.",
@@ -285,6 +286,7 @@ FUNCTION_CONFIG = {
     3: {
         "dims": 3, "bounds": [(0.0,1.0)]*3,
         "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.02,
+        "y_transform": "standardize",
         "description": "3D drug compound combinations",
         "dim_labels": ["Compound A", "Compound B", "Compound C"],
         "notes": "Physical process — Matern kernel appropriate. EI balances improvement focus with uncertainty. Negated side effects = maximise.",
@@ -293,6 +295,7 @@ FUNCTION_CONFIG = {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
         "ard": True,
+        "y_transform": "standardize",
         "description": "4D warehouse ML hyperparameter tuning",
         "dim_labels": ["Param 1", "Param 2", "Param 3", "Param 4"],
         "notes": "Rough landscape with local optima — stay exploratory early. Dynamic environment means old observations may drift in value. ARD enabled: P3 shows no significant correlation (r=−0.16, p=0.38) while P1/P4 dominate (r≈−0.50). ARD learns separate length-scales, effectively down-weighting P3.",
@@ -300,6 +303,7 @@ FUNCTION_CONFIG = {
     5: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
         "kernel": "rbf", "acquisition": "ei", "beta": 1.5, "xi": 0.01,
+        "y_transform": "standardize",
         "description": "4D chemical yield (unimodal)",
         "dim_labels": ["Chemical 1", "Chemical 2", "Chemical 3", "Chemical 4"],
         "notes": "Unimodal — safest to exploit aggressively once in the right neighbourhood. Low xi on EI. Shift to pure exploitation by week 4.",
@@ -307,6 +311,7 @@ FUNCTION_CONFIG = {
     6: {
         "dims": 5, "bounds": [(0.0,1.0)]*5,
         "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.02,
+        "y_transform": "standardize",
         "description": "5D cake recipe (negative penalty, max→0)",
         "dim_labels": ["Flour", "Sugar", "Eggs", "Butter", "Milk"],
         "notes": "Output is negative by design — scores near zero are best. Start near balanced ingredient ratios. Extreme values almost certainly score worse.",
@@ -315,6 +320,7 @@ FUNCTION_CONFIG = {
         "dims": 6, "bounds": [(0.0,1.0)]*6,
         "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.05,
         "ard": True,
+        "y_transform": "standardize",
         "description": "6D gradient boosting hyperparameters",
         "dim_labels": [
             "Dim 1: n_estimators [0–1]", "Dim 2: learning_rate [0–1]",
@@ -328,6 +334,7 @@ FUNCTION_CONFIG = {
         "dims": 8, "bounds": [(0.0,1.0)]*8,
         "kernel": "matern", "acquisition": "ucb", "beta": 2.5, "xi": 0.1,
         "ard": True,
+        "y_transform": "standardize",
         "description": "8D complex black-box (ML hyperparameters)",
         "dim_labels": [f"Param {i+1}" for i in range(8)],
         "notes": "Hardest function. GP at 8D will be uncertain — accept this. High beta UCB keeps exploration broad. ARD enabled: D1 and D3 have strong negative correlation (r≈−0.65) and dominate RF importance; ARD learns short length-scales for these vs long for D6/D8.",
@@ -420,13 +427,17 @@ def _yt_scale(Y: np.ndarray) -> float:
     s = (q75 - q25) / 1.35  # ≈ std for Normal
     return float(max(s, np.abs(Y).mean() * 0.1, 1e-10))
 
-def apply_y_transform(Y: np.ndarray, method: str | None, scale: float | None = None):
+def apply_y_transform(Y: np.ndarray, method: str | None, scale=None):
     """Transform Y before GP fitting. Returns (Y_t, scale_used).
 
-    arcsinh: sinh⁻¹(Y/s) — symmetric log-like, defined for all reals.
-             Spreads near-zero values that differ only in tiny magnitude,
-             which is the failure mode for F1 where all outputs ≈ 0.
-    log1p:   log(1+Y) — for all-positive Y (monotone, reduces right skew).
+    arcsinh:    sinh⁻¹(Y/s) — symmetric log-like, defined for all reals.
+                Spreads near-zero values that differ only in tiny magnitude,
+                which is the failure mode for F1 where all outputs ≈ 0.
+    log1p:      log(1+Y) — for all-positive Y (monotone, reduces right skew).
+    standardize: z-score: (Y − μ) / σ — zero mean, unit variance.
+                scale is stored as (μ, σ) tuple so the transform is invertible.
+                Ensures EI/UCB are computed in consistent units across functions
+                with very different Y ranges (e.g. F4 [−33, −1] vs F5 [50, 1374]).
     """
     if method == "arcsinh":
         s = scale if scale is not None else _yt_scale(Y)
@@ -434,31 +445,47 @@ def apply_y_transform(Y: np.ndarray, method: str | None, scale: float | None = N
     if method == "log1p":
         s = 1.0
         return np.log1p(np.clip(Y, 0, None)), s
+    if method == "standardize":
+        if scale is not None:
+            y_mean, y_std = scale
+        else:
+            y_mean = float(Y.mean())
+            y_std  = float(max(float(Y.std()), 1e-8))
+        return (Y - y_mean) / y_std, (y_mean, y_std)
     return Y.copy(), 1.0
 
-def invert_y_transform(Y_t: np.ndarray, method: str | None, scale: float) -> np.ndarray:
+def invert_y_transform(Y_t: np.ndarray, method: str | None, scale) -> np.ndarray:
     """Inverse of apply_y_transform — restores original Y scale for display."""
     if method == "arcsinh":
         return np.sinh(Y_t) * scale
     if method == "log1p":
         return np.expm1(Y_t)
+    if method == "standardize":
+        y_mean, y_std = scale
+        return Y_t * y_std + y_mean
     return Y_t
 
 
-def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False):
+def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
+             normalize_y: bool = True):
     """Build a GP with isotropic or ARD kernel.
 
     ard=True: use a separate length-scale per dimension (Automatic Relevance
     Determination). The GP marginal-likelihood optimizer then assigns short
     length-scales to sensitive dimensions and long ones to irrelevant dims,
     effectively learning which inputs matter.
+
+    normalize_y: set to False when Y has already been transformed by
+    apply_y_transform (e.g. standardize, arcsinh) to avoid double-normalising.
+    When no y_transform is active, True is the safe default.
     """
     ls = np.ones(dims) if (ard and dims > 1) else 1.0
     if kernel_type == "rbf":
         kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=(1e-2, 10.0))
     else:
         kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=(1e-2, 10.0))
-    return GaussianProcessRegressor(kernel=kernel, alpha=1e-6, normalize_y=True, n_restarts_optimizer=5)
+    return GaussianProcessRegressor(kernel=kernel, alpha=1e-6, normalize_y=normalize_y,
+                                    n_restarts_optimizer=5)
 
 
 def compute_acquisition(acq, mean, std, y_max, beta, xi):
@@ -525,7 +552,10 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
     Y_fit, yt_scale = apply_y_transform(Y, y_transform)
     y_max_fit = Y_fit.max()
 
-    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
+    # Don't double-normalise: if a y_transform is active it already standardises Y;
+    # only fall back to GP-internal normalisation when no transform is in use.
+    gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+                  normalize_y=(y_transform is None))
     gp.fit(X, Y_fit)
 
     n_cand = 5000
@@ -535,9 +565,15 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
     best = np.argmax(scores)
     suggestion = np.clip(candidates[best], 0.0, 1.0)
 
-    # Return mean/std in original Y scale for display
+    # Return mean/std in original Y scale for display.
+    # yt_scale is a (mean, std) tuple for "standardize", a float for "arcsinh".
     mean_display = float(invert_y_transform(np.array([mean[best]]), y_transform, yt_scale)[0])
-    std_display  = float(std[best] * yt_scale) if y_transform == "arcsinh" else float(std[best])
+    if y_transform == "arcsinh":
+        std_display = float(std[best] * yt_scale)
+    elif y_transform == "standardize":
+        std_display = float(std[best] * yt_scale[1])   # scale back by Y std-dev
+    else:
+        std_display = float(std[best])
     return [round(float(v), 6) for v in suggestion], mean_display, std_display
 
 # =============================================================================
@@ -1338,7 +1374,9 @@ with right_col:
                     ard_on = cfg.get("ard", False)
                     badges = ""
                     if yt:
-                        badges += f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(239,68,68,0.12);color:#f87171;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.4rem">{yt}</span>'
+                        yt_color = "#f87171" if yt == "arcsinh" else "#fbbf24"
+                        yt_bg    = "rgba(239,68,68,0.12)" if yt == "arcsinh" else "rgba(251,191,36,0.12)"
+                        badges += f'<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:{yt_bg};color:{yt_color};border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.4rem">{yt}</span>'
                     if ard_on:
                         badges += '<span style="font-family:\'JetBrains Mono\',monospace;font-size:0.6rem;background:rgba(16,185,129,0.12);color:#10b981;border-radius:3px;padding:0.1rem 0.35rem;margin-left:0.3rem">ARD</span>'
                     st.markdown(f"""

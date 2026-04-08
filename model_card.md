@@ -16,6 +16,7 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | **Training data** | Initial `.npy` observations + all portal submissions | Integrated from Week 2 onward; Week 1 omitted initial data (bug, now fixed) |
 | **Kernel stability** | Kernel fixed per function after initial choice | Kernel encodes a structural prior — changing it mid-run introduces inconsistency |
 | **ARD** | Enabled selectively from Week 3 | Automatic Relevance Determination allows per-dimension lengthscales; useful for high-D functions once data accumulates |
+| **Y-transform** | `standardize` (F2–F8), `arcsinh` (F1) | Z-scores Y before GP fitting so acquisition functions operate in consistent units; prevents outliers or large Y ranges from distorting kernel hyperparameter optimisation. Applied from Week 4 onward. `normalize_y=False` set on the GP to avoid double-normalisation. |
 
 ### Acquisition function guide
 
@@ -336,16 +337,16 @@ None beyond the main GP — with effectively zero output everywhere, alternative
 
 ## Cross-Function Summary
 
-| Fn | Dims | Kernel | Acquisition | β / ξ (current) | Initial Best Y | All-time Best Y | Best at Week |
-|----|------|--------|-------------|-----------------|----------------|-----------------|--------------|
-| 1 | 2 | Matérn 5/2 | UCB | β=1.0 | ≈0.000 | ≈4.4×10⁻⁵⁷ | W3 |
-| 2 | 2 | Matérn 5/2 | UCB | β=1.5 | 0.6112 | 0.6112 | Initial |
-| 3 | 3 | Matérn 5/2 | EI | ξ=0.05 | −0.0348 | **−0.0182** | W2 |
-| 4 | 4 | Matérn 5/2 | UCB | β=1.2 | −4.026 | **−1.177** | W2 |
-| 5 | 4 | RBF | Mean | ξ=0.01 | 1088.86 | **1374.52** | W3 |
-| 6 | 5 | Matérn 5/2 | EI | ξ=0.05 | −0.714 | **−0.384** | W3 |
-| 7 | 6 | Matérn 5/2 | EI | ξ=0.10 | 1.365 | **2.358** | W2 |
-| 8 | 8 | Matérn 5/2 | UCB | β=2.5 | 9.5985 | **9.704** | W2 |
+| Fn | Dims | Kernel | Acquisition | β / ξ (current) | Y-transform | Initial Best Y | All-time Best Y | Best at Week |
+|----|------|--------|-------------|-----------------|-------------|----------------|-----------------|--------------|
+| 1 | 2 | Matérn 5/2 | UCB | β=1.0 | arcsinh | ≈0.000 | ≈4.4×10⁻⁵⁷ | W3 |
+| 2 | 2 | Matérn 5/2 | UCB | β=1.5 | standardize | 0.6112 | 0.6112 | Initial |
+| 3 | 3 | Matérn 5/2 | EI | ξ=0.05 | standardize | −0.0348 | **−0.0182** | W2 |
+| 4 | 4 | Matérn 5/2 | UCB | β=1.2 | standardize | −4.026 | **−1.177** | W2 |
+| 5 | 4 | RBF | Mean | ξ=0.01 | standardize | 1088.86 | **1374.52** | W3 |
+| 6 | 5 | Matérn 5/2 | EI | ξ=0.05 | standardize | −0.714 | **−0.384** | W3 |
+| 7 | 6 | Matérn 5/2 | EI | ξ=0.10 | standardize | 1.365 | **2.358** | W2 |
+| 8 | 8 | Matérn 5/2 | UCB | β=2.5 | standardize | 9.5985 | **9.704** | W2 |
 
 **Improved on initial best:** F3 ✓, F4 ✓, F5 ✓, F6 ✓, F7 ✓, F8 ✓ (6 of 8)
 **Not yet improved:** F1 (no signal found), F2 (initial best is noisy; portal best is 0.493)
@@ -365,3 +366,38 @@ Random Forest was evaluated as a SMAC-style surrogate for Function 8 in `analysi
 ### Why not a neural network?
 
 With 13–43 observations per function, a neural network would overfit severely. Additionally, tuning a neural network's own hyperparameters would require a secondary BBO process. The GP's analytical hyperparameter fitting (maximum likelihood) avoids this bootstrapping problem entirely.
+
+---
+
+## Engineering Changes Log
+
+### W4 — Output standardisation (`"standardize"` Y-transform)
+
+**Implemented:** 2026-04-08, between W3 results and W4 submissions.
+
+**Change:** Added a `"standardize"` Y-transform to `capstone_app.py`. Applied to F2–F8 via `FUNCTION_CONFIG`. F1 retains its existing `arcsinh` transform. The GP is built with `normalize_y=False` whenever any Y-transform is active.
+
+**Pipeline (per suggestion call):**
+```
+Y_raw  →  Y_fit = (Y_raw − μ) / σ  →  GP.fit(X, Y_fit)
+GP.predict(x_candidate) → mean_z, std_z   [in z-score units]
+UCB / EI computed on mean_z, std_z
+mean_display = mean_z × σ + μ             [reverted for UI]
+std_display  = std_z  × σ                 [reverted for UI]
+```
+
+**Root cause addressed:** scikit-learn's `GaussianProcessRegressor.predict` returns values in the same scale passed to `fit`. Before this change, the acquisition function (UCB/EI) operated in raw Y units, meaning β and ξ had implicitly different meanings across the eight functions:
+
+| Fn | Raw σ(Y) | EI ξ=0.01 meaning (before) | EI ξ=0.01 meaning (after) |
+|----|----------|---------------------------|--------------------------|
+| F3 | ≈ 0.08 | improve by 12.5% of σ | improve by 1% of σ |
+| F4 | ≈ 8.3 | improve by 0.1% of σ | improve by 1% of σ |
+| F5 | ≈ 577 | improve by 0.002% of σ | improve by 1% of σ |
+| F7 | ≈ 0.8 | improve by 1.25% of σ | improve by 1% of σ |
+
+After standardisation, ξ=0.01 uniformly means "require improvement of 1% of one standard deviation above the current best" — a consistent, interpretable threshold.
+
+**Behavioural impact:**
+- UCB suggestions: unaffected in direction (linear rescaling of mean and std does not change the argmax)
+- EI suggestions: effective ξ threshold shifts. For F4 and F5 (large raw σ) the effective threshold decreases, making EI more exploitation-focused — appropriate given these functions are in pure exploit mode
+- Visualisation: unchanged — dashboard charts still use raw Y throughout
