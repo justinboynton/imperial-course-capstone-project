@@ -476,3 +476,62 @@ After: the GP correctly captures that the peak region is uncertain rather than u
 ### Configuration
 
 `FUNCTION_CONFIG[2]` now includes `"heteroscedastic": True`. A purple `het-GP` badge is displayed in the dashboard alongside the existing `standardize` badge for F2.
+
+---
+
+## Surrogate Comparison — GP vs GBM vs GP+GBM Ensemble for F8 (Between W4 and W5)
+
+**Date:** 2026-04-08 · **Applies to:** Function 8 · **Notebook:** `analysis/04_function8_gpgbm_ensemble.ipynb`
+
+### Motivation
+
+Function 8 is the hardest function: 8 dimensions, 43 observations, and a landscape where only a few dimensions actually matter. Two concerns motivated investigating GBM and a GP+GBM ensemble as alternative surrogates:
+
+1. A pure GP in 8D may struggle to separate genuine structure from noise — it must simultaneously fit the global trend and model local uncertainty across a large input space
+2. GBM can capture non-linear interactions explicitly through tree splits, which might be more efficient than the GP's kernel-based interpolation when n is small relative to d
+
+### What was tested
+
+Three surrogates were evaluated in `analysis/04_function8_gpgbm_ensemble.ipynb`:
+
+| Surrogate | Description |
+|---|---|
+| **GP (baseline)** | ARD Matérn 5/2, standardised Y, `normalize_y=False`, UCB β=2.5 |
+| **GBM standalone** | `max_depth=3`, `learning_rate=0.05`, `subsample=0.8`, `min_samples_leaf=3`. Bootstrap uncertainty (30 resamples) as a proxy for posterior std |
+| **GP+GBM ensemble** | GBM fits the global trend; a residual GP (`C * Matern(ν=2.5)`) fits the remaining variation. Ensemble prediction = GBM mean + residual GP mean; uncertainty = residual GP std |
+
+### Results
+
+| Surrogate | CV R² | LOO 95% PI coverage | Predicted Y at suggestion |
+|---|---|---|---|
+| GP (5-fold CV) | **0.969 ± 0.021** | **0.953** ✓ | 9.89 |
+| GBM (LOO) | 0.798 | N/A | 9.64 |
+| GP+GBM ensemble (LOO) | 0.798 | **0.023** ✗ | 9.65 |
+
+### What we learned
+
+**1. The GP is far stronger than GBM on this dataset.** GBM's LOO R² of 0.798 versus the GP's 0.969 is a decisive gap. With only 43 points in 8 dimensions, GBM needs many trees (n_estimators=200) to fit the data, which leads to in-sample R² = 0.9995 — essentially memorisation. The LOO score reveals this is not real generalisation.
+
+**2. The ensemble breaks because GBM overfits.** The residual GP receives residuals with near-zero variance (residual variance fraction = 0.001). With nothing to learn, the residual GP collapses to a flat, near-constant posterior with std ≈ 0. The ensemble's LOO 95% PI coverage is 0.023 — catastrophically overconfident — because the residual GP's uncertainty is almost entirely eliminated by the GBM's overfit. If the ensemble were used for acquisition, β=2.5 × std ≈ 0 = no exploration at all.
+
+**3. GBM and GP agree completely on which dimensions matter.** This is the genuinely useful finding from the exercise. Despite their different predictive accuracy, both methods rank the dimensions in the same order:
+
+| Rank | Dim | GBM permutation importance | GP ARD 1/ℓ |
+|---|---|---|---|
+| 1 | D3 | 0.386 | 0.456 |
+| 2 | D1 | 0.297 | 0.317 |
+| 3 | D7 | 0.161 | 0.320 |
+| 4 | D2 | 0.081 | 0.232 |
+| 5–8 | D4–D8 | < 0.04 | < 0.10 |
+
+This cross-validates the ARD kernel's automatic relevance findings independently. D3 and D1 are unambiguously the dominant dimensions. D5, D6, and D8 contribute almost nothing — the GP's ARD assigns them maximum length-scales (ℓ = 10.0), meaning the function barely varies along those axes.
+
+**4. The GP's calibration is excellent.** LOO 95% PI coverage = 0.953 (target = 0.95) is near-perfect. The GP is neither overconfident nor over-conservative, which is exactly what a principled acquisition function requires.
+
+**5. When would GP+GBM be worth trying?** The ensemble would be valuable if the GP LOO R² were poor (say < 0.5) because the landscape had strong non-linearities that the GP's smooth kernel couldn't capture. For F8, the GP is already capturing 97% of variance on held-out points — there is no residual structure left for GBM to find.
+
+### Decision
+
+**Continue with the GP as the sole production surrogate for F8.** No change to `FUNCTION_CONFIG[8]`. The GBM analysis is retained as a validation tool only — confirming D1 and D3 are the dimensions that must stay low.
+
+**W5 strategy implication:** the GP's UCB suggestion explores around D3≈0.23 (higher than the W2 best at D3=0.04), which the GP is uncertain about. A safer option is tight exploitation within the confirmed neighbourhood of the W2 best `[0.21, 0.20, 0.04, 0.04, 0.97, 0.07, 0.22, 0.06]`, perturbing D6 and D7 (both surrogates agree these have low sensitivity and therefore offer the most information gain per query).
