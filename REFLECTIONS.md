@@ -1064,3 +1064,49 @@ The root cause is sample size: with n=36–46, individual decision trees are too
 - F7: Switched to Rational Quadratic in `capstone_app.py`, β reduced from 1.96 to 1.0
 - F8: Testing Rational Quadratic for W7 (marginal but coverage improvement)
 - NGBoost: Rejected for all functions — revisit when n ≥ 100
+
+---
+
+## F1 Hotspot Hunt — Log-Space Analysis (Between W6 and W7)
+
+Analysis notebook: `analysis/07_function1_hotspot_hunt.ipynb`
+
+### Motivation
+
+F1 has returned effectively zero for seven consecutive portal submissions. The raw-space GP sees a flat landscape and suggests queries based solely on uncertainty — which consistently leads to barren regions far from any signal. A fundamentally different analytical approach was needed.
+
+### Key finding: radial decay structure in log-space
+
+When F1's outputs are analysed in **log₁₀(|Y|) space**, a clear spatial structure emerges that is entirely invisible in raw space:
+
+| Observation | Y | log₁₀(\|Y\|) | Distance from [0.65, 0.68] |
+|------------|---|------------|---------------------------|
+| [0.6501, 0.6815] (init) | −3.6×10⁻³ | −2.4 | 0.000 |
+| [0.7310, 0.7330] (init) | +7.7×10⁻¹⁶ | −15.1 | 0.096 |
+| [0.7749, 0.7634] (W4) | −1.6×10⁻²⁷ | −26.8 | 0.149 |
+| [0.6834, 0.8611] (init) | +2.5×10⁻⁴⁰ | −39.6 | 0.183 |
+| [0.0800, 0.2000] (W7) | −3.1×10⁻¹¹⁶ | −115.5 | 0.746 |
+
+The Spearman correlation between distance from [0.65, 0.68] and log₁₀(|Y|) is **r = −0.696, p = 0.002** — signal magnitude decays at approximately −128 orders of magnitude per unit distance. This is statistically significant and model-free.
+
+### Why the GP in log-space still failed
+
+Fitting a GP on log₁₀(|Y|) was attempted but the posterior collapsed to a flat mean of ~−72.7 everywhere. With 17 points spanning 183 orders of magnitude, the Matérn kernel cannot resolve the landscape — the dynamic range exceeds anything a smooth covariance function can represent with this sample size.
+
+### Why W1–W7 queries all failed
+
+Every portal query was placed ≥0.45 units from the magnitude centre. At −128 orders of magnitude per unit distance, this means ~60 orders of magnitude below the detectable signal. The W3–W7 left-centre cluster (X₁ ∈ [0.08, 0.15]) was the worst possible strategy: it is the most distant explored region from the hotspot.
+
+### Critical observation about the initial data
+
+The challenge designers placed two initial data points near [0.65–0.73, 0.68–0.73] with magnitudes 13–40 orders above everything else. This is almost certainly a deliberate design choice to bracket the hotspot location. We should have recognised this signal in week 1.
+
+### F1 candidate for W8
+
+The recommended query is **[0.691, 0.707]** — the midpoint of the two highest-magnitude initial data points. At distance d=0.05 from the magnitude centre, the radial fit predicts log|Y| ≈ −16, or |Y| ≈ 10⁻¹⁶. This is still tiny but 41 orders of magnitude larger than the best portal result to date (4.4×10⁻⁵⁷ at W3).
+
+The sign is uncertain (one neighbour is positive, one negative), but even a negative result at this magnitude would confirm the hotspot location.
+
+### Methodological lesson
+
+When the GP surrogate fails due to extreme output dynamic range, **model-free spatial statistics** (distance-based correlations, radial profiles) and **treating the initial data as a designed experiment** are more informative than any parametric model. The challenge designers placed the initial points to reveal the landscape structure — reading that signal should have been the first step, not the last.

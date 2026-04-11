@@ -160,6 +160,7 @@ These constraints are derived from multiple weeks of observation and should not 
 
 | Fn | Constraint | Evidence |
 |----|------------|----------|
+| F1 | X₁ ∈ [0.55, 0.75]; X₂ ∈ [0.60, 0.75] | Radial decay centred at [0.65, 0.68]; r=−0.696 p=0.002; all high-magnitude points in this band |
 | F2 | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.91, 0.96] | All high-Y results within this band; W6 best at [0.699, 0.932] |
 | F3 | A ∈ [0.43, 0.46]; B ∈ [0.46, 0.50]; C ∈ [0.47, 0.52] | W5/W6 top-2 both within this range |
 | F4 | All dims ∈ [0.35, 0.48] | W6 breakthrough at all-moderate settings; any extreme produces negative Y |
@@ -188,3 +189,8 @@ These constraints are derived from multiple weeks of observation and should not 
 | 6 | **Single-dimension perturbation tests have clear ROI.** F7's D1 test (0.095 → 0.013) returned a crisp answer in one query. When the optimum is narrow and deterministic, this protocol is more informative than general EI exploration. |
 | 6 | **Cluster exhaustion is a valid stopping criterion.** Six F1 queries in the same region with monotonically decreasing Y confirms the hotspot is elsewhere. Move to a completely new sub-domain rather than continuing to refine within a barren cluster. |
 | 6 | **Positive Y for F4 confirms that BBO rediscovers ML tuning intuition.** The "moderate everything" optimum at [0.45, 0.42, 0.36, 0.38] is consistent with regularisation theory — extreme settings on any dimension produce worse models. |
+| 6–7 | **Kernel choice is NOT a one-time decision.** F4's Matérn 5/2 achieved LOO R²=0.485 — barely better than a mean predictor. Switching to Matérn 3/2 improved this to 0.961. Kernel selection must be re-evaluated as data accumulates and the landscape is better understood. |
+| 6–7 | **Rational Quadratic captures multi-scale structure.** For F7, RQ (0.868) outperformed Matérn 5/2 (0.493–0.722) by modelling both the broad flat landscape and the narrow peak simultaneously. Useful when a function has features at different length-scales. |
+| 6–7 | **NGBoost 95% PI coverage is dangerously under-calibrated at small n.** Coverage of 2–25% means the model's uncertainty is meaningless for acquisition. Tree-based probabilistic surrogates require n ≥ 100 to be viable. |
+| 6–7 | **When the GP fails, go model-free.** F1's 183-order dynamic range defeats any kernel-based model. Spearman rank correlation on distance (r=−0.696, p=0.002) revealed the hotspot structure that the GP could not detect. |
+| 6–7 | **Initial data is a designed experiment — read it first.** The challenge designers placed F1's two highest-magnitude points near [0.65–0.73, 0.68–0.73]. Recognising this as a deliberate bracket of the hotspot should have been the week 1 strategy, not the week 7 one. |
