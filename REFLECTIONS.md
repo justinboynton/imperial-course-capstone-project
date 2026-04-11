@@ -198,7 +198,7 @@ One entry per function per week following the challenge format.
 
 **What did it teach us?** The RBF kernel and low-ξ EI correctly concentrated the search near the initial best. The slight upward adjustment in C1 (0.224 → 0.284) combined with higher C3/C4 (0.879 → 0.910/0.866) produced the improvement. The unimodal structure means continued close exploitation is the correct strategy — there are no competing peaks to be found elsewhere.
 
-**Strategy for next week:** Continue tight exploitation via EI ξ=0.01. Submit near [0.265, 0.845, 0.920, 0.875] — a small step from the week 2 best, probing whether the peak extends slightly toward higher C3 and higher C4. Do not increase C1 further; the correlation evidence suggests C1 should remain low.
+**WeekStrategy for next week:** Continue tight exploitation via EI ξ=0.01. Submit near [0.265, 0.845, 0.920, 0.875] — a small step from the week 2 best, probing whether the peak extends slightly toward higher C3 and higher C4. Do not increase C1 further; the correlation evidence suggests C1 should remain low.
 
 ---
 
@@ -344,7 +344,7 @@ One entry per function per week following the challenge format.
 
 **Did it improve on the best?** **Yes — new all-time best.** Two consecutive portal improvements: -0.518 → -0.384 (+26%). Now 46% better than the initial best (-0.714).
 
-**What did it teach us?** The recipe landscape continues to reward a specific combination: moderate Flour (~0.38–0.45), moderate Sugar (~0.26–0.48), higher Eggs (~0.44–0.56), high Butter (~0.72), and low-moderate Milk (~0.16–0.17). The initial hypothesis that Sugar and Milk must be minimised has been contradicted — moderate Sugar (0.48 this week) still produced the best result. The GP is converging on a genuine peak region that is distinct from the initial best.
+**What did it teach us?** The recipe landscape continues to reward a specific combination: moderate Flour (~~0.38–0.45), moderate Sugar (~~0.26–0.48), higher Eggs (~~0.44–0.56), high Butter (~~0.72), and low-moderate Milk (~0.16–0.17). The initial hypothesis that Sugar and Milk must be minimised has been contradicted — moderate Sugar (0.48 this week) still produced the best result. The GP is converging on a genuine peak region that is distinct from the initial best.
 
 **Strategy for next week:** Exploit tightly around W3 best. EI ξ=0.01. Target [0.37, 0.47, 0.57, 0.73, 0.17] — marginal increments in the improving directions. Butter and Milk appear stable; focus on whether Flour can be reduced further and Eggs raised slightly.
 
@@ -382,7 +382,135 @@ One entry per function per week following the challenge format.
 
 ---
 
-*Reflections for subsequent weeks will be appended below.*
+---
+
+## Week 4 — 2026-04-09
+
+### Function 1 — 2D Contamination Field
+
+**Submitted:** [0.774940, 0.763411] → **Y ≈ 0.000**
+
+**Acquisition:** UCB β=1.0, Matérn 5/2, arcsinh Y-transform
+
+**Exploration or exploitation?** Exploration — upper-right quadrant again, despite week 3 strategy recommending the lower-left.
+
+**Did it improve on the best?** No. Five weeks, five queries, zero signal detected in any of them.
+
+**What did it teach us?** W4 accidentally revisited the upper-right region tested in week 1 — the β=1.0 GP suggestion was pulled toward the highest-uncertainty edge of a region already confirmed empty. With all four quadrants now sampled at least once (upper-right W1, lower-right W2, left-mid W3, upper-right again W4), the hotspot either sits in a very narrow band in the lower-left or requires precise coordinates rather than quadrant-level targeting. The GP has nothing useful to learn from five near-identical near-zero outputs; it cannot help locate a signal it has never seen.
+
+**Strategy for next week (W5):** Manual lower-left probe at [0.08, 0.48] — far from all prior queries. If this also returns near-zero, the remaining weeks should focus on a systematic diagonal sweep: [0.15, 0.15], [0.30, 0.70], [0.70, 0.30] to try to bracket the hotspot geometrically.
+
+---
+
+### Function 2 — 2D Noisy Log-Likelihood
+
+**Submitted:** [0.699929, 0.961372] → **Y = 0.6485**
+
+**Acquisition:** UCB β=1.5, Matérn 5/2, heteroscedastic GP, standardised Y
+
+**Exploration or exploitation?** Tight exploitation — almost identical X₁ to the initial best (0.700 vs 0.703), X₂ pushed slightly higher (0.961 vs 0.927).
+
+**Did it improve on the best?** **Yes — new all-time best.** 0.6485 beats the initial data best of 0.6112 (+6.1%). First time any portal submission has beaten the initial data for this function.
+
+**What did it teach us?** The heteroscedastic GP introduced between W3 and W4 played a direct role here. By assigning higher noise to the two conflicting peak-region observations (0.611 and 0.493), the GP stopped treating their gap as a definitive gradient and instead kept its uncertainty wide around [0.70, 0.93]. The UCB suggestion consequently stayed in the right neighbourhood rather than drifting away from the apparent "downhill" direction. X₂=0.961 (slightly higher than the initial best's 0.927) and X₁≈0.700 (unchanged) produced the gain — consistent with the true peak being slightly higher in X₂ than the initial observation suggested.
+
+**Strategy for next week (W5):** Continue tight exploitation. Submit at [0.698, 0.942] — the W5 GP suggestion. Keep UCB β=2.5 (wider uncertainty = better UCB suggestions for a noisy function). The peak is narrow; stay within ±0.02 of [0.700, 0.955].
+
+---
+
+### Function 3 — 3D Drug Compounds
+
+**Submitted:** [0.983498, 0.399509, 0.608719] → **Y = −0.0640**
+
+**Acquisition:** EI β=1.96, ξ=0.05, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Unexpected exploration — EI with ξ=0.05 pushed Compound A to 0.983, far from the W2 best neighbourhood.
+
+**Did it improve on the best?** No. Partial recovery from the catastrophic W3 result (−0.1227 → −0.0640), but still well below the W2 all-time best of −0.0182. The W2 coordinates [0.446, 0.339, 0.486] remain the best.
+
+**What did it teach us?** Compound A at 0.983 (extremely high) did not produce a good result — reinforcing that the high-A region is not optimal. The EI with ξ=0.05 is still generating large jumps rather than tight exploitation; the GP landscape is uncertain enough in 3D at n=19 that EI frequently identifies high-uncertainty remote regions as worth exploring. The recovery from W3 confirms Compound B at 0.400 is reasonable (much better than W3's B=0.030), but the W2 level of B≈0.34 remains the best known.
+
+**Strategy for next week (W5):** Return to tight exploitation around the W2 best. Lower ξ to 0.02 to prevent further long-range jumps. The W5 suggestion is [0.439, 0.461, 0.503] — close to the W2 best, reasonable in all three dimensions. Hard constraint: Compound A < 0.60, Compound B in [0.25, 0.55].
+
+---
+
+### Function 4 — 4D Warehouse Hyperparameters
+
+**Submitted:** [0.433271, 0.396639, 0.499133, 0.420139] → **Y = −2.3702**
+
+**Acquisition:** UCB β=1.2, ξ=0.05, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Exploitation attempt — mid-range values, but P3 at 0.499 is substantially higher than the W2 best's P3=0.311.
+
+**Did it improve on the best?** No — continued regression for the second consecutive week. W2: −1.177 → W3: −1.568 → W4: −2.370. The W2 best at [0.460, 0.413, 0.311, 0.405] is now three weeks old and still unchallenged.
+
+**What did it teach us?** P3 is the culprit. Moving P3 from 0.311 (W2 best) to 0.385 (W3) produced a −33% regression; moving it to 0.499 (W4) produced a further −51% regression. The function has a sharp, narrow optimum in the P3 dimension — P3 must stay near 0.31. The other three parameters were reasonable in W4 (P1=0.433, P2=0.397, P4=0.420 are all close to the W2 best), confirming P3 is the dominant sensitivity. ARD should be learning this.
+
+**Strategy for next week (W5):** Lock P3 at 0.270 (slightly lower than W2's 0.311, as the trend suggests the true optimum may be slightly below 0.31). Submit at [0.464, 0.420, 0.270, 0.389] — the W5 GP suggestion. Do not deviate P3 above 0.35 in any future submission.
+
+---
+
+### Function 5 — 4D Chemical Yield
+
+**Submitted:** [0.414879, 0.859494, 0.918916, 0.797250] → **Y = 1124.92**
+
+**Acquisition:** Mean (pure exploitation), RBF kernel, standardised Y
+
+**Exploration or exploitation?** Pure exploitation — no exploration bonus, GP posterior mean maximiser.
+
+**Did it improve on the best?** No — regression from the W3 best of 1374.52 to 1124.92 (−18%). First time this function has regressed since week 1.
+
+**What did it teach us?** Switching to "mean" acquisition did not cause the regression — the coordinates drifted. W4 had C1=0.415 (up from W3's 0.362) and C4=0.797 (down from W3's 0.872). The W3 best had C4=0.872; dropping to C4=0.797 is a −8.5% reduction in a dimension that appears sensitive. The GP posterior mean maximiser faithfully followed the GP's estimated peak, but the GP's confidence in the C1/C4 values may have been misleading. The unimodal structure is confirmed but the peak coordinates are narrower than they appeared.
+
+**Strategy for next week (W5):** Switch back to EI ξ=0.01 to let the GP self-correct. The W5 suggestion is [0.339, 0.838, 0.946, 0.872] — pulling C1 back down and restoring C4 to 0.872. This should recover toward the W3 best.
+
+---
+
+### Function 6 — 5D Cake Recipe
+
+**Submitted:** [0.348495, 0.500810, 0.287744, 0.969433, 0.102729] → **Y = −1.2939**
+
+**Acquisition:** EI β=1.5, ξ=0.05, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Over-exploration — Butter (dim4) jumped to 0.969, far above the W3 best value of 0.725. Eggs (dim3) dropped sharply to 0.288 from W3's 0.560.
+
+**Did it improve on the best?** No — severe regression. W3 best was −0.384 (new all-time best at the time); W4 returned −1.294. The two consecutive improving weeks (W2: −0.518, W3: −0.384) have been undone.
+
+**What did it teach us?** Butter at 0.969 is catastrophically high — nearly twice the W3 best value of 0.725. Similarly, Eggs at 0.288 vs W3's 0.560 represents a −49% deviation in a dimension that had been steadily improving. The EI with ξ=0.05 on a 5D surface with only 25 observations generated an extremely off-target suggestion. The lesson: for F6, Butter must remain in [0.70, 0.76] and Eggs must stay above 0.45 — these are now confirmed as tight constraints based on the regression evidence.
+
+**Strategy for next week (W5):** Return directly to the W3 best neighbourhood. The W5 GP suggestion is [0.343, 0.523, 0.603, 0.751, 0.141] — very close to W3 best [0.380, 0.481, 0.560, 0.725, 0.170]. Switch to "mean" acquisition to prevent further large jumps. Hard constraints: Butter ∈ [0.70, 0.78], Eggs ∈ [0.45, 0.65], Milk < 0.25.
+
+---
+
+### Function 7 — 6D GBM Hyperparameters
+
+**Submitted:** [0.024247, 0.109602, 0.273023, 0.338380, 0.357029, 0.537200] → **Y = 0.7445**
+
+**Acquisition:** EI β=1.96, ξ=0.1, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Aggressive exploration — very large deviation from W2 best in two critical dimensions: learning_rate dropped to 0.110 (from 0.365), regularisation (dim6) dropped to 0.537 (from 0.721).
+
+**Did it improve on the best?** No — catastrophic regression. W2 best was 2.358; W4 returned 0.745, the second worst result ever on this function. Two weeks of regression (W3: 1.931, W4: 0.745) since the W2 peak.
+
+**What did it teach us?** EI with ξ=0.1 is far too explorative for a 6D function at this stage. The acquisition jumped to a region with learning_rate=0.110 — less than a third of the W2 optimal value of 0.365. With only 33 observations across 6 dimensions, the GP has high uncertainty in unexplored regions, and a high-ξ EI will always find those regions attractive regardless of whether they are genuinely promising. The W2 result has now been confirmed as a genuine peak rather than noise — no subsequent query has come close to matching it.
+
+**Strategy for next week (W5):** Submit directly at the W2 best: [0.095, 0.365, 0.337, 0.317, 0.362, 0.721]. The W5 suggestion [0.095, 0.365, 0.337, 0.317, 0.362, 0.721] is essentially the W2 best reproduced — a sensible choice. Reduce ξ to 0.05 and switch to EI or "mean". The W2 best must be matched before any further deviations are tested.
+
+---
+
+### Function 8 — 8D ML Hyperparameters
+
+**Submitted:** [0.091322, 0.141133, 0.251186, 0.059089, 0.816917, 0.769123, 0.129731, 0.088824] → **Y = 8.2840**
+
+**Acquisition:** UCB β=2.5, ξ=0.1, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Mixed — D3=0.251 (higher than W2's 0.040), D6=0.769 (far higher than W2's 0.067). D4=0.059 and D1=0.091 are appropriately low.
+
+**Did it improve on the best?** Partial recovery from W3's 7.318 (8.284), but still well below W2's all-time best of 9.704. Three consecutive weeks without matching the W2 best.
+
+**What did it teach us?** The GP+GBM ensemble analysis confirmed D3 must be kept very low — W4's D3=0.251 is 6× higher than W2's 0.040, directly explaining the shortfall. D6=0.769 is also far higher than W2's 0.067. The ARD kernel should be learning these constraints but UCB β=2.5 keeps exploring along D3 and D6 because the GP has not ruled out that these high values might be good. They are not. The evidence is now unambiguous: D3 < 0.10 and D6 < 0.15 are hard requirements. The W5 suggestion [0.136, 0.240, 0.025, 0.032, 0.989, 0.204, 0.334, 0.718] has D3=0.025 (correct) but D6=0.204 and D7=0.334, D8=0.718 are all much higher than the W2 best — these deviations may limit the W5 result.
+
+**Strategy for next week (W5):** Submit W5 suggestion as generated. Hard constraints confirmed for W6: D1 < 0.25, D2 < 0.25, D3 < 0.07, D4 < 0.08, D5 > 0.90. D6, D7, D8 are lower-sensitivity (GP ARD and GBM agree) and can be explored more freely, but should be anchored near the W2 best values (D6≈0.07, D7≈0.22, D8≈0.06) until a new best is found.
 
 ---
 
@@ -408,16 +536,18 @@ With explicit standardisation, ξ=0.01 consistently means "require improvement o
 
 ### Function-level impact
 
-| Fn | Raw Y range | Key benefit of standardise |
-|----|-------------|---------------------------|
-| F1 | ≈0 everywhere | No change — arcsinh already applied |
-| F2 | [−0.07, 0.61] | Consistent ξ interpretation; minor numerical benefit |
-| F3 | [−0.40, −0.018] | ξ=0.02 now means a fixed fraction of σ, not 2% of a −0.4 range |
-| F4 | [−32.6, −1.2] | **Primary beneficiary** — outlier at −21.254 no longer distorts kernel fit |
-| F5 | [50, 1374] | **Primary beneficiary** — 27× range compressed to unit variance; EI now numerically stable |
-| F6 | [−2.57, −0.38] | Moderate benefit; ξ meaning standardised |
-| F7 | [0.003, 2.36] | β and ξ now on same scale as other functions |
-| F8 | [5.59, 9.70] | Narrow raw range but positive-only — zero-mean GP prior now correctly centred |
+
+| Fn  | Raw Y range     | Key benefit of standardise                                                                 |
+| --- | --------------- | ------------------------------------------------------------------------------------------ |
+| F1  | ≈0 everywhere   | No change — arcsinh already applied                                                        |
+| F2  | [−0.07, 0.61]   | Consistent ξ interpretation; minor numerical benefit                                       |
+| F3  | [−0.40, −0.018] | ξ=0.02 now means a fixed fraction of σ, not 2% of a −0.4 range                             |
+| F4  | [−32.6, −1.2]   | **Primary beneficiary** — outlier at −21.254 no longer distorts kernel fit                 |
+| F5  | [50, 1374]      | **Primary beneficiary** — 27× range compressed to unit variance; EI now numerically stable |
+| F6  | [−2.57, −0.38]  | Moderate benefit; ξ meaning standardised                                                   |
+| F7  | [0.003, 2.36]   | β and ξ now on same scale as other functions                                               |
+| F8  | [5.59, 9.70]    | Narrow raw range but positive-only — zero-mean GP prior now correctly centred              |
+
 
 ### What this does not change
 
@@ -449,21 +579,21 @@ A new `compute_heteroscedastic_alpha(X, Y_fit)` function was added to `capstone_
 **Algorithm:**
 
 1. **Leave-one-out (LOO) residuals:** for each of the `n` training points, fit a GP on the remaining `n−1` points and predict the held-out point. The squared prediction error is a local noise estimate. For the peak region, the two nearby observations (0.611 and 0.493) strongly contradict each other during LOO, producing large residuals. In the flat low-Y region, the GP predicts each held-out point well, producing small residuals.
-
 2. **Gaussian kernel smoother** (bandwidth = 0.20 in [0,1] units): smooths each point's noise estimate by taking a weighted average over nearby points. This prevents isolated spikes and ensures the noise map varies smoothly across the input space.
-
 3. **Clip and return** as an array of `alpha` values in z-score units (since `Y_fit` is already standardised). Passed as `alpha=alpha_arr` to `GaussianProcessRegressor` — sklearn supports per-point alpha natively.
 
 The GP is built with `normalize_y=False` (Y is already in z-score units) and the per-point alpha array in the same z-score units. The visualisation path (`_prepare_gp`) also uses heteroscedastic alpha, converting from raw-Y² units to normalised units via `/Y.std()²` so that CI bands in the slice plots also widen at the noisy peak.
 
 ### Empirical validation on F2 data (n=14 points)
 
-| Region | Example point | Y | alpha (z-score²) |
-|---|---|---|---|
-| Noisy peak | [0.703, 0.927] | 0.611 | **1.487** |
-| Noisy peak | [0.694, 0.906] | 0.493 | **1.466** |
-| Flat low-Y | [0.143, 0.349] | −0.066 | 1.182 |
-| Flat low-Y | [0.339, 0.214] | −0.014 | 0.936 |
+
+| Region     | Example point  | Y      | alpha (z-score²) |
+| ---------- | -------------- | ------ | ---------------- |
+| Noisy peak | [0.703, 0.927] | 0.611  | **1.487**        |
+| Noisy peak | [0.694, 0.906] | 0.493  | **1.466**        |
+| Flat low-Y | [0.143, 0.349] | −0.066 | 1.182            |
+| Flat low-Y | [0.339, 0.214] | −0.014 | 0.936            |
+
 
 The peak region is assigned ~1.6× more noise than the flat region. The GP will have wider uncertainty bands near [0.70, 0.93] and will not treat the 0.118 gap as a definitive spatial gradient.
 
@@ -494,19 +624,23 @@ Function 8 is the hardest function: 8 dimensions, 43 observations, and a landsca
 
 Three surrogates were evaluated in `analysis/04_function8_gpgbm_ensemble.ipynb`:
 
-| Surrogate | Description |
-|---|---|
-| **GP (baseline)** | ARD Matérn 5/2, standardised Y, `normalize_y=False`, UCB β=2.5 |
-| **GBM standalone** | `max_depth=3`, `learning_rate=0.05`, `subsample=0.8`, `min_samples_leaf=3`. Bootstrap uncertainty (30 resamples) as a proxy for posterior std |
+
+| Surrogate           | Description                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GP (baseline)**   | ARD Matérn 5/2, standardised Y, `normalize_y=False`, UCB β=2.5                                                                                                                |
+| **GBM standalone**  | `max_depth=3`, `learning_rate=0.05`, `subsample=0.8`, `min_samples_leaf=3`. Bootstrap uncertainty (30 resamples) as a proxy for posterior std                                 |
 | **GP+GBM ensemble** | GBM fits the global trend; a residual GP (`C * Matern(ν=2.5)`) fits the remaining variation. Ensemble prediction = GBM mean + residual GP mean; uncertainty = residual GP std |
+
 
 ### Results
 
-| Surrogate | CV R² | LOO 95% PI coverage | Predicted Y at suggestion |
-|---|---|---|---|
-| GP (5-fold CV) | **0.969 ± 0.021** | **0.953** ✓ | 9.89 |
-| GBM (LOO) | 0.798 | N/A | 9.64 |
-| GP+GBM ensemble (LOO) | 0.798 | **0.023** ✗ | 9.65 |
+
+| Surrogate             | CV R²             | LOO 95% PI coverage | Predicted Y at suggestion |
+| --------------------- | ----------------- | ------------------- | ------------------------- |
+| GP (5-fold CV)        | **0.969 ± 0.021** | **0.953** ✓         | 9.89                      |
+| GBM (LOO)             | 0.798             | N/A                 | 9.64                      |
+| GP+GBM ensemble (LOO) | 0.798             | **0.023** ✗         | 9.65                      |
+
 
 ### What we learned
 
@@ -516,13 +650,15 @@ Three surrogates were evaluated in `analysis/04_function8_gpgbm_ensemble.ipynb`:
 
 **3. GBM and GP agree completely on which dimensions matter.** This is the genuinely useful finding from the exercise. Despite their different predictive accuracy, both methods rank the dimensions in the same order:
 
-| Rank | Dim | GBM permutation importance | GP ARD 1/ℓ |
-|---|---|---|---|
-| 1 | D3 | 0.386 | 0.456 |
-| 2 | D1 | 0.297 | 0.317 |
-| 3 | D7 | 0.161 | 0.320 |
-| 4 | D2 | 0.081 | 0.232 |
-| 5–8 | D4–D8 | < 0.04 | < 0.10 |
+
+| Rank | Dim   | GBM permutation importance | GP ARD 1/ℓ |
+| ---- | ----- | -------------------------- | ---------- |
+| 1    | D3    | 0.386                      | 0.456      |
+| 2    | D1    | 0.297                      | 0.317      |
+| 3    | D7    | 0.161                      | 0.320      |
+| 4    | D2    | 0.081                      | 0.232      |
+| 5–8  | D4–D8 | < 0.04                     | < 0.10     |
+
 
 This cross-validates the ARD kernel's automatic relevance findings independently. D3 and D1 are unambiguously the dominant dimensions. D5, D6, and D8 contribute almost nothing — the GP's ARD assigns them maximum length-scales (ℓ = 10.0), meaning the function barely varies along those axes.
 
@@ -553,13 +689,15 @@ This cross-validates the ARD kernel's automatic relevance findings independently
 
 **Not at current sample sizes.** The fundamental problem is the parameter-to-observation ratio:
 
-| Function | n | MLP(16→8) params | Ratio (params/n) |
-|---|---|---|---|
-| F1–F2 | 14 | 193 | 13.8× |
-| F3 | 19 | 209 | 11.0× |
-| F4–F5 | 24 | 225 | 9.4× |
-| F7 | 33 | 257 | 7.8× |
-| F8 | 43 | 289 | 6.7× |
+
+| Function | n   | MLP(16→8) params | Ratio (params/n) |
+| -------- | --- | ---------------- | ---------------- |
+| F1–F2    | 14  | 193              | 13.8×            |
+| F3       | 19  | 209              | 11.0×            |
+| F4–F5    | 24  | 225              | 9.4×             |
+| F7       | 33  | 257              | 7.8×             |
+| F8       | 43  | 289              | 6.7×             |
+
 
 Even the smallest two-hidden-layer MLP (16 → 8 units) has 6–14× more free parameters than training observations for every function. An ARD GP for F8 has just **9 hyperparameters** — optimised analytically via marginal-likelihood maximisation, not gradient descent on MSE.
 
@@ -567,12 +705,14 @@ Even the smallest two-hidden-layer MLP (16 → 8 units) has 6–14× more free p
 
 LOO cross-validation results from `analysis/05_nn_surrogate_analysis.ipynb`:
 
-| Surrogate | F7 LOO R² | F8 LOO R² | F8 95% PI coverage |
-|---|---|---|---|
-| GP (ARD Matérn 5/2) | **0.563** | **0.985** | **0.977** |
-| MLP (16→8) | −0.091 | 0.887 | N/A |
-| MLP (32→16) | 0.199 | 0.865 | N/A |
-| Deep Ensemble K=10 | −0.417 | 0.906 | 0.907 |
+
+| Surrogate           | F7 LOO R² | F8 LOO R² | F8 95% PI coverage |
+| ------------------- | --------- | --------- | ------------------ |
+| GP (ARD Matérn 5/2) | **0.563** | **0.985** | **0.977**          |
+| MLP (16→8)          | −0.091    | 0.887     | N/A                |
+| MLP (32→16)         | 0.199     | 0.865     | N/A                |
+| Deep Ensemble K=10  | −0.417    | 0.906     | 0.907              |
+
 
 **F7 is decisive:** all NN variants fail completely. The ensemble LOO R² of −0.417 means it predicts worse than the training mean. F7's output range is [0.003, 2.358] with a skewed distribution, and at n=33 with 6D inputs, none of the MLPs generalise.
 
@@ -581,9 +721,7 @@ LOO cross-validation results from `analysis/05_nn_surrogate_analysis.ipynb`:
 ### Why does the GP win at this data scale?
 
 1. **Parameter efficiency.** 9 GP hyperparameters vs 289 MLP parameters for F8. The GP achieves higher accuracy with dramatically fewer degrees of freedom.
-
 2. **Marginal-likelihood optimisation.** GP hyperparameters are fitted by maximising the log-marginal-likelihood, which naturally balances fit quality against model complexity — a built-in form of regularisation. MLP gradient descent on MSE has no such analytical safeguard.
-
 3. **Principled uncertainty.** GP posterior variance is derived from first principles and has guaranteed properties. Deep Ensemble uncertainty is an empirical spread across K independently trained models — it underestimates uncertainty in sparsely sampled regions because all K models extrapolate the same learned function confidently.
 
 ### Learning curve — when would a NN become viable?
@@ -597,3 +735,137 @@ If sample sizes grow beyond ~60 observations for any function, the most promisin
 ### Decision
 
 **No change to any surrogate configuration.** The GP remains the production surrogate for all eight functions. The NN analysis confirms the GP choice is correct, not conservative.
+
+---
+
+## Week 5 — 2026-04-10
+
+### Function 1 — 2D Contamination Field
+
+**Submitted:** [0.080000, 0.480000] → **Y ≈ 0.000**
+
+**Acquisition:** UCB β=2.0, Matérn 5/2, arcsinh Y-transform
+
+**Exploration or exploitation?** Manual probe — hand-specified per W4 strategy to target the lower-left quadrant for the first time.
+
+**Did it improve on the best?** No. Six portal submissions across five quadrant regions, all effectively zero. No signal has been detected anywhere in the [0,1]² domain.
+
+**What did it teach us?** The lower-left (X₁=0.08, X₂=0.48) also returns zero, completing the four-quadrant sweep: top-right (W1), lower-right (W2), left-mid (W3), top-right again (W4, accidental revisit), lower-left (W5). Every major region has been tested at the quadrant level. The contamination hotspot either sits in an extremely narrow sub-region not yet hit, or requires a precision far below quadrant-level targeting. With the GP having never seen a non-zero output, acquisition function guidance is essentially random — it cannot learn a landscape it has never detected. GP guidance is futile until a non-zero reading appears.
+
+**Strategy for next week (W6):** Dense sub-quadrant probe. Submit near [0.12, 0.52] — a short step from W5 within the lower-left, probing whether the hotspot is near the W5 point rather than at an extreme corner. If still zero, the remaining weeks should run a geometric sweep: diagonals [0.25, 0.25], [0.50, 0.15], [0.15, 0.50] to maximise domain coverage by distance from all prior queries.
+
+---
+
+### Function 2 — 2D Noisy Log-Likelihood
+
+**Submitted:** [0.697709, 0.942183] → **Y = 0.5130**
+
+**Acquisition:** UCB β=2.5, Matérn 5/2, heteroscedastic GP, standardised Y
+
+**Exploration or exploitation?** Tight exploitation — near-identical X₁ to the all-time best (0.698 vs 0.700), X₂ pulled back slightly from W4 (0.942 vs 0.961).
+
+**Did it improve on the best?** No — regression. W4 achieved 0.6485; W5 returned 0.513 (−20.9%). The all-time best remains W4: 0.6485 at [0.699929, 0.961372].
+
+**What did it teach us?** The only meaningful coordinate difference between W4 and W5 is X₂: 0.961 (W4, best ever) vs 0.942 (W5, worse). X₁ ≈ 0.700 was held constant in both. The 0.136 output gap produced by a 0.019 step in X₂ indicates the function is steeply peaked along the X₂ axis in this region. The optimal X₂ is close to 0.96 — reducing to 0.94 already costs 20% of output. The noisy function and heteroscedastic GP are correctly managing the uncertainty, but the X₂ = 0.96 band is now well-established as the peak location.
+
+**Strategy for next week (W6):** Restore X₂ to the W4 level and probe slightly higher. Submit near [0.699, 0.963] — a +0.002 step in X₂ from W4. Hard constraint: X₂ ≥ 0.955 in all future submissions. Keep UCB β=2.5.
+
+---
+
+### Function 3 — 3D Drug Compounds
+
+**Submitted:** [0.438733, 0.461281, 0.502799] → **Y = −0.008967**
+
+**Acquisition:** EI β=1.96, ξ=0.02, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Tight exploitation — returned directly to the W2 best neighbourhood as planned, with a slightly different position in Compound B.
+
+**Did it improve on the best?** **Yes — new all-time best.** Improved from −0.0182 (W2) to −0.00897, a 50.7% further reduction in adverse reaction score. Cumulative improvement from the initial best (−0.0348): 74.2%.
+
+**What did it teach us?** W5 coordinates vs W2 best: A=0.439 (≈W2's 0.446), B=0.461 (+36% above W2's 0.339), C=0.503 (≈W2's 0.486). The improvement came primarily from a higher Compound B — 0.461 vs 0.339. Despite previous evidence suggesting the best B was mid-low (0.30–0.35), a mid-range B≈0.46 produced a better result. The optimal B is likely in [0.40–0.50] rather than [0.30–0.35]. The EI with ξ=0.02 explored gently within the W2 neighbourhood and found genuine improvement — the right level of ξ for this stage.
+
+**Strategy for next week (W6):** Reduce ξ to 0.01, tighten around the W5 best. Target near [0.44, 0.50, 0.47] — a small nudge in B toward 0.50. Soft constraints: A ∈ [0.40, 0.55], B ∈ [0.42, 0.55], C ∈ [0.46, 0.55]. Do not deviate more than 0.05 per dimension from W5 coordinates.
+
+---
+
+### Function 4 — 4D Warehouse Hyperparameters
+
+**Submitted:** [0.464534, 0.420432, 0.270045, 0.389012] → **Y = −1.8974**
+
+**Acquisition:** UCB β=2.0, ξ=0.05, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Exploitation — mid-range values, P3 locked at 0.270 as planned.
+
+**Did it improve on the best?** No — fourth consecutive week without matching the W2 best. Partial recovery from W4: −2.370 → −1.897, but still 61% below the W2 best of −1.177.
+
+**What did it teach us?** The P3 sweep across four weeks is now instructive: P3=0.311 → Y=−1.177 (W2, best); P3=0.385 → Y=−1.568 (W3); P3=0.499 → Y=−2.370 (W4); P3=0.270 → Y=−1.897 (W5). This is a bowl-shaped response with a minimum around P3≈0.31. Moving P3 either higher or lower from 0.311 degrades performance, but asymmetrically — P3 too high (0.499) is worse than P3 too low (0.270). The other three parameters were essentially at W2 values in W5 (P1=0.465 vs 0.460, P2=0.420 vs 0.413, P4=0.389 vs 0.405), confirming P3 alone is responsible for the gap. The W2 value of P3=0.311 was correct from the start.
+
+**Strategy for next week (W6):** Lock P3 at exactly 0.311 (or within ±0.010). Submit near [0.462, 0.414, 0.311, 0.404] — reproducing the W2 best as precisely as possible. Switch to EI ξ=0.01. If this reproduces W2's −1.177 or better, the next step is micro-perturbation of P1/P2/P4 one at a time.
+
+---
+
+### Function 5 — 4D Chemical Yield
+
+**Submitted:** [0.338929, 0.838032, 0.945674, 0.872000] → **Y = 1412.628**
+
+**Acquisition:** EI β=1.5, ξ=0.01, RBF kernel, standardised Y
+
+**Exploration or exploitation?** Tight exploitation — EI ξ=0.01 self-corrected from the W4 coordinate drift.
+
+**Did it improve on the best?** **Yes — new all-time best.** W4 had regressed to 1124.92; W5 surpassed the previous all-time best (W3: 1374.52) to reach 1412.63 (+2.8%). Four of five portal submissions have now been in the top-three range: the one exception was W4's "mean" acquisition overshoot.
+
+**What did it teach us?** Switching back from "mean" to EI ξ=0.01 immediately self-corrected. The critical coordinate shifts: C1 reduced from 0.415 (W4) back to 0.339, and C4 restored from 0.797 (W4) back to 0.872. Both of these returned the coordinates to within the confirmed hard-constraint bounds (C1 ∈ [0.28, 0.42], C4 > 0.85). The unimodal landscape means small but correct adjustments reliably find improvements. The peak region is now well-bracketed: C≈[0.33–0.38, 0.838, 0.945, 0.872].
+
+**Strategy for next week (W6):** Continue EI ξ=0.01. Target near [0.320, 0.840, 0.955, 0.875] — a careful step from W5 with a slight C3 increase (0.946 → 0.955) and C2 nudge (0.838 → 0.840). C1 is narrowing toward [0.30–0.35]; do not push above 0.38.
+
+---
+
+### Function 6 — 5D Cake Recipe
+
+**Submitted:** [0.342811, 0.522702, 0.603234, 0.750991, 0.141019] → **Y = −0.341297**
+
+**Acquisition:** Mean (pure exploitation), Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Pure exploitation — GP posterior mean maximiser, anchored on the W3 best neighbourhood.
+
+**Did it improve on the best?** **Yes — new all-time best.** W3 had been the previous best at −0.384; W5 reached −0.341 (+11.2%). Two consecutive improvements after the W4 regression: W3=−0.384 → W4=−1.294 (collapse) → W5=−0.341. Now 52.2% better than the initial best (−0.714).
+
+**What did it teach us?** The W5 recipe (Flour=0.343, Sugar=0.523, Eggs=0.603, Butter=0.751, Milk=0.141) revises the earlier intuition that Sugar must be kept low. Sugar=0.523 is the highest ever used in a top-performing submission, yet it produced a new best — evidently Sugar is not a primary driver of penalty in this range. Butter=0.751 and Eggs=0.603 are the reliable anchors: Butter in [0.70, 0.78] and Eggs above 0.50 have appeared in every good result. Milk at 0.141 remains low and beneficial. Switching from EI to pure "mean" acquisition successfully prevented the kind of large exploratory jump that caused W4's regression.
+
+**Strategy for next week (W6):** Continue "mean" acquisition. Target near [0.35, 0.52, 0.62, 0.75, 0.14] — small Eggs increase (+0.017). Butter and Milk are stable; Sugar can remain in [0.45, 0.55]. Hard constraints remain: Butter ∈ [0.70, 0.78], Eggs > 0.50, Milk < 0.20.
+
+---
+
+### Function 7 — 6D GBM Hyperparameters
+
+**Submitted:** [0.095050, 0.364801, 0.337000, 0.317000, 0.362000, 0.721151] → **Y = 2.3562**
+
+**Acquisition:** EI β=1.96, ξ=0.05, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Pure exploitation — coordinates virtually identical to the W2 all-time best.
+
+**Did it improve on the best?** Essentially matched. Y=2.3562 vs W2's 2.3576 (gap of 0.0014). Two weeks of severe regression (W3: 1.931, W4: 0.745) were fully reversed by returning to the W2 coordinates.
+
+**What did it teach us?** The near-perfect reproduction of the W2 result with near-identical inputs is highly significant: **Function 7 is effectively deterministic**. Same input coordinates → same output, within 0.001. This has two implications: (1) the W2/W5 value of 2.357 is a reliable, noise-free estimate — it is not a lucky outlier; (2) beating this best requires genuinely better coordinates, not lucky re-sampling. The landscape is sharply peaked: a 0.06 deviation in dim1 (W3) cost 18%; a 0.26 deviation in dim2 (W4) cost 68%. The peak is narrow in dim1 (n_estimators ≈ 0.095) and dim2 (learning_rate ≈ 0.365). Regularisation dim6=0.721 appears stable.
+
+**Strategy for next week (W6):** Single-dimension micro-perturbation. Proposed: reduce dim1 only (0.095 → 0.082), hold all others at W2/W5 values. If Y < 2.355, conclude dim1=0.095 is essentially at the optimum; pivot to testing dim2 (+0.005). Do not deviate more than one dimension at a time, and never more than ±0.015 per dimension from [0.095, 0.365, 0.337, 0.317, 0.362, 0.721].
+
+---
+
+### Function 8 — 8D ML Hyperparameters
+
+**Submitted:** [0.136428, 0.239528, 0.025387, 0.032045, 0.988952, 0.204302, 0.333825, 0.718319] → **Y = 9.8001**
+
+**Acquisition:** UCB β=2.5, ξ=0.1, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Exploitation of the critical dimensions (D1, D3, D4, D5) combined with exploration in the low-sensitivity dimensions (D6, D7, D8).
+
+**Did it improve on the best?** **Yes — new all-time best.** Improved from W2's 9.7035 to 9.8001 (+1.0%). Three weeks of regression (W3: 7.318, W4: 8.284) reversed. The GP+GBM ensemble analysis prediction was validated.
+
+**What did it teach us?** W5 directly confirmed three findings from the between-W4/W5 analysis: (1) D3=0.025 (well below the 0.07 hard limit) and D5=0.989 (above 0.90) are necessary and sufficient for high output; (2) D6=0.204, D7=0.334, D8=0.718 — all substantially higher than W2's 0.067/0.222/0.061 — did not prevent a new best, validating GP ARD's assignment of maximum length-scales to these dimensions; (3) D1=0.136 and D2=0.240 are acceptable (both below 0.25), with D1 now confirmed in the working range. The GP correctly explored D6–D8 without penalty, freeing future queries to focus on the critical D1/D3/D4/D5 subspace. Notably, the W4 reflection's concern that D6=0.204 "may limit the W5 result" was proven wrong — low sensitivity in D6/D7/D8 is confirmed beyond doubt.
+
+**Strategy for next week (W6):** Hard constraints: D1 < 0.18, D3 < 0.04, D4 < 0.05, D5 > 0.97. Push D1 lower (0.136 → 0.05–0.10 range) to test whether a further reduction beyond W5 improves output. D2 can remain near 0.20–0.25. D6/D7/D8 can be varied freely — the GP should explore along these axes at will.
+
+---
+
+*Reflections for Week 6 and beyond will be appended below.*
