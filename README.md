@@ -55,11 +55,11 @@ Each function returns a **single scalar value** — a real number representing t
 | Function | Output range (observed) | Sign | Domain context |
 |----------|------------------------|------|----------------|
 | F1 | ≈ 0 | Near-zero | Contamination signal — extremely localised; hotspot not yet found |
-| F2 | [−0.066, 0.649] | Mixed | Noisy log-likelihood |
+| F2 | [−0.066, 0.726] | Mixed | Noisy log-likelihood |
 | F3 | [−0.399, −0.009] | Negative | Negative side-effect count; maximise toward 0 |
-| F4 | [−32.6, −1.18] | Negative | Difference from baseline; maximise toward 0 |
+| F4 | [−32.6, +0.136] | Mixed | Difference from baseline; first positive result in W6 |
 | F5 | [50.4, 1412.6] | Positive | Chemical yield — unimodal, one clear peak |
-| F6 | [−2.57, −0.341] | Negative | Negative penalty score; maximise toward 0 |
+| F6 | [−2.57, −0.296] | Negative | Negative penalty score; maximise toward 0 |
 | F7 | [0.003, 2.358] | Positive | ML model performance score |
 | F8 | [5.59, 9.800] | Positive | Validation accuracy (scaled) |
 
@@ -142,15 +142,15 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 | Fn | Dims | Description | Initial Best Y | Portal Best Y | Overall Best Y | Best Week |
 |----|------|-------------|---------------|--------------|----------------|-----------|
 | 1  | 2D   | Contamination/radiation field | ≈0.000 | ≈0.000 | ≈0.000 | — |
-| 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.6485** | 0.6485 | W4 |
+| 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.7260** | 0.7260 | W6 ↑ |
 | 3  | 3D   | Drug compound combinations | −0.0348 | **−0.0090** | −0.0090 | W5 ↑ |
-| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **−1.1765** | −1.1765 | W2 |
+| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **+0.1362** | +0.1362 | W6 ↑ |
 | 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1412.63** | 1412.63 | W5 ↑ |
-| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.3413** | −0.3413 | W5 ↑ |
+| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.2956** | −0.2956 | W6 ↑ |
 | 7  | 6D   | GBM hyperparameter tuning | 1.3650 | **2.3576** | 2.3576 | W2 |
 | 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8001** | 9.8001 | W5 ↑ |
 
-**7 of 8 functions have beaten the initial data best. F1 remains the only unsolved function.**
+**7 of 8 functions have beaten the initial data best. F4 crossed zero for the first time in W6. F1 remains the only unsolved function.**
 
 ---
 
@@ -203,6 +203,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | 3 | 2026-04-18 | All 8 functions | F5 new best (1374.5). F6 new best (−0.384). F2 near initial (0.493). F8 regression (7.32) — exploration query with high D2/D4. |
 | 4 | 2026-04-25 | All 8 functions | F2 **beats** initial best (0.649). F8 recovered (8.28). F6 regression (−1.29) — over-exploitation in wrong region. |
 | 5 | 2026-04-10 | All 8 functions | **Best week to date: 4 new all-time bests** — F3 (−0.0090), F5 (1412.6), F6 (−0.341), F8 (9.800). F7 reproduced W2 result exactly, confirming it is deterministic. F2 regression (0.513) reveals X₂ ≈ 0.96 sensitivity. F4 partial recovery but W2 best still unchallenged. F1: 5 consecutive zeros — lower-left also fails. |
+| 6 | 2026-04-17 | All 8 functions | **3 new all-time bests** — F2 (0.726), F4 (+0.136, first positive ever), F6 (−0.296). F3 stable near-best (−0.013). F7 D1 perturbation test (2.189) confirms D1=0.095 is optimal. F5 regression (1223) — D4 violated. F8 regression (9.189) — UCB pushed D1/D4 outside hard constraints. F1: sixth consecutive zero; cluster abandoned. |
 
 ---
 
@@ -215,6 +216,31 @@ The following improvements have been made to the surrogate pipeline since Week 1
 | ARD kernels | Between W1–W2 | F4, F7, F8 |
 | Output standardisation (`standardize` Y-transform) | Between W3–W4 | F2–F8 |
 | Heteroscedastic GP (LOO per-point alpha) | Between W4–W5 | F2 |
+
+---
+
+## Academic Foundations
+
+The design choices in this project are grounded in established Bayesian Optimisation research. The table below maps each paper to the specific technique it motivates.
+
+| Paper | Key idea applied in this project |
+|---|---|
+| Jones, Schonlau & Welch (1998). *Efficient Global Optimization of Expensive Black-Box Functions.* Journal of Global Optimization. | Expected Improvement (EI) acquisition function — used for F3, F5, F6, F7 where a credible incumbent exists and improvement focus is appropriate |
+| Srinivas, Krause, Kakade & Seeger (2010). *Gaussian Process Optimization in the Bandit Setting: No Regret and Experimental Design.* ICML. | GP-UCB acquisition with β parameter — provides theoretical regret bounds justifying the exploration pressure applied to F1, F2, F8 |
+| Rasmussen & Williams (2006). *Gaussian Processes for Machine Learning.* MIT Press. | Matérn 5/2 kernel selection; Automatic Relevance Determination (ARD) via per-dimension length-scales for F4, F7, F8 |
+| Snoek, Larochelle & Adams (2012). *Practical Bayesian Optimization of Machine Learning Algorithms.* NeurIPS. | Motivation for normalising GP targets before fitting — basis for the output standardisation (`standardize` Y-transform) applied to F2–F8 |
+| Kersting, Plagemann, Pfaff & Burgard (2007). *Most Likely Heteroscedastic Gaussian Process Regression.* ICML. | Input-dependent noise modelling — direct motivation for the per-point LOO alpha array used in F2's heteroscedastic GP |
+| Lakshminarayanan, Pritzel & Blundell (2017). *Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles.* NeurIPS. | Deep Ensemble uncertainty method — empirically tested in `analysis/05_nn_surrogate_analysis.ipynb` and found inferior to the GP at n ≤ 44 |
+| Hutter, Hoos & Leyton-Brown (2011). *Sequential Model-Based Algorithm Configuration.* LION. | Random Forest surrogate with tree-variance uncertainty — evaluated in `analysis/03_function8_rf_surrogate.ipynb`; RF feature importance used to cross-validate GP ARD findings for F8 |
+| Pedregosa et al. (2011). *Scikit-learn: Machine Learning in Python.* JMLR. | Core implementation library — `GaussianProcessRegressor` with native array alpha (heteroscedastic GP), ARD length-scales, and LOO cross-validation |
+
+### Looking ahead
+
+| Source | Relevance |
+|---|---|
+| Eriksson et al. (2019). *Scalable Global Optimization via Local Bayesian Optimization (TuRBO).* NeurIPS. | Trust region BO — constrains search to a local region around the current best; directly applicable to F8's 8D exploitation challenge |
+| Balandat et al. (2020). *BoTorch: A Framework for Efficient Monte-Carlo Bayesian Optimization.* NeurIPS. | Production BBO library with Deep Kernel Learning support; worth adopting if dataset sizes grow beyond n ≈ 60 |
+| Wilson, Hu, Salakhutdinov & Xing (2016). *Deep Kernel Learning.* AISTATS. | NN feature extractor + GP kernel — most promising NN-based surrogate architecture for higher-n settings; requires GPyTorch |
 
 ---
 

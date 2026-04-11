@@ -868,4 +868,142 @@ If sample sizes grow beyond ~60 observations for any function, the most promisin
 
 ---
 
+## Week 6 — 2026-04-17
+
+### Function 1 — 2D Contamination Field
+
+**Submitted:** [0.121472, 0.517850] → **Y = −6.53×10⁻⁷⁰**
+
+**Acquisition:** EI ξ=0.08, β=2.3, Matérn 5/2
+
+**Exploration or exploitation?** Continued local clustering — a sixth consecutive query in the X₁ ∈ [0.08, 0.15], X₂ ∈ [0.48, 0.52] region.
+
+**Did it improve on the best?** No. W3's 4.4×10⁻⁵⁷ remains the best (itself effectively zero). Six queries in, every result is astronomically small. The current cluster strategy has now been exhausted — W5 and W6 are both *negative*, confirming the EI acquisition is finding no meaningful gradient to follow.
+
+**What did it teach us?** The [0.10–0.15, 0.48–0.52] region is confirmed barren. Six queries without signal means the hotspot is not here. The GP is fitting near-zero noise and producing suggestions that circle the W3 "best" (4.4×10⁻⁵⁷) rather than genuinely exploring. The arcsinh transform is working correctly; the problem is that there is genuinely nothing to find in the left-centre region. The bottom half of the domain (X₂ < 0.35) has never been sampled.
+
+**Strategy for next week (W7):** Abandon the left-centre cluster entirely. Submit `[0.08, 0.20]` — the lower-left quadrant is the only major unsampled region remaining. This is a pure exploration move, not GP-guided.
+
+---
+
+### Function 2 — 2D Noisy Log-Likelihood
+
+**Submitted:** [0.699249, 0.931870] → **Y = 0.7260 ← new all-time best**
+
+**Acquisition:** UCB β=2.5, Matérn 5/2, ARD, standardised Y, heteroscedastic GP
+
+**Exploration or exploitation?** Tight exploitation — X₁ held at 0.699, X₂ shifted slightly lower (0.932 vs W4's 0.961).
+
+**Did it improve on the best?** **Yes.** W6 (0.726) beats W4 (0.648), itself better than the initial best (0.611). Three progressive improvements across W3→W4→W6. The heteroscedastic GP continues to produce tightly targeted suggestions — W5's regression (0.513) was noisy but the overall trend is upward.
+
+**What did it teach us?** X₂ ≈ 0.932 outperforms X₂ ≈ 0.961 — the peak in X₂ is between 0.90 and 0.96, not at the top. X₁ ≈ 0.699 is confirmed as optimal (five consecutive high-Y submissions within 0.01 of this value). The W5 regression (0.513 at [0.698, 0.942]) may have been unlucky noise or the true peak is a local ridge around X₂ ≈ 0.93. The het-GP's wider uncertainty bands near the peak are correctly guiding exploitation within this noisy region.
+
+**Strategy for next week (W7):** Probe X₂ slightly lower — `[0.699, 0.920]`. The signal suggests peak X₂ is in [0.920, 0.935]. X₁ = 0.699 is locked.
+
+---
+
+### Function 3 — 3D Drug Compounds
+
+**Submitted:** [0.446362, 0.495568, 0.466016] → **Y = −0.012781**
+
+**Acquisition:** EI ξ=0.02, Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Exploitation — very close to the W5 best [0.439, 0.461, 0.503].
+
+**Did it improve on the best?** No. W5 remains the best at −0.009. W6 (−0.013) is slightly worse but still the second-best ever and well above the initial best (−0.035). The function is converging tightly in the [0.43–0.45, 0.46–0.50, 0.47–0.51] neighbourhood.
+
+**What did it teach us?** The W5 point [0.439, 0.461, 0.503] is not a noise spike — W6's nearby result (−0.013) confirms this is a genuine high-Y neighbourhood. The optimal compound ratios are near equal proportions (A≈0.44, B≈0.48, C≈0.48) with B and C slightly higher than A. All three compounds at roughly balanced mid-range concentrations appear optimal.
+
+**Strategy for next week (W7):** Very tight exploitation — `[0.438, 0.462, 0.505]`, essentially resubmitting the W5 coordinates with a micro-nudge toward slightly higher C. Reduce ξ to 0.005.
+
+---
+
+### Function 4 — 4D Warehouse ML Hyperparameters
+
+**Submitted:** [0.448803, 0.417891, 0.362905, 0.376819] → **Y = +0.136163 ← dramatic new best**
+
+**Acquisition:** UCB β=2.0, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Exploitation — GP stayed very close to the W5 coordinates.
+
+**Did it improve on the best?** **Yes — the first positive Y ever recorded for F4.** Previous best was −1.177 (W2). Crossing zero means the suggested hyperparameters now outperform the warehouse ML baseline. The improvement over W2 is +1.31 units, the largest single-week gain on any function.
+
+**What did it teach us?** The convergence to [D1≈0.45, D2≈0.42, D3≈0.36, D4≈0.38] is revealing: all four dimensions sit in a tight mid-range cluster [0.36–0.45]. This mirrors a well-known hyperparameter tuning pattern — balanced, moderate settings outperform extreme configurations. The GP's ARD kernel and output standardisation together have guided the search to a region that was inaccessible when Y ranged from −32 to −1 (before standardisation). The +0.136 result is also a reminder that the theoretical maximum may be well above zero — there may be more room to improve.
+
+**Hyperparameter tuning insight:** The "moderate everything" optimum is consistent with regularisation theory. Extreme parameter values (very high or very low learning rate, very deep trees, very low regularisation) all produce worse ML models. BBO has independently rediscovered this principle from 24 initial points + 5 portal observations.
+
+**Strategy for next week (W7):** Stay extremely close — `[0.450, 0.420, 0.365, 0.378]`. The positive territory is newly discovered; any significant deviation risks returning to negative. Switch to EI ξ=0.01 to prevent the acquisition function pulling toward high-uncertainty negative regions.
+
+---
+
+### Function 5 — 4D Chemical Yield
+
+**Submitted:** [0.313278, 0.842760, 0.957143, 0.810816] → **Y = 1223.34**
+
+**Acquisition:** EI ξ=0.01, RBF, standardised Y
+
+**Exploration or exploitation?** Exploitation — near the W5 best but with D4 reduced from 0.872 to 0.811.
+
+**Did it improve on the best?** No. W5 (1412.6) remains the best. The 1223 result is a partial regression — the third time a query close to but not exactly at the W5 coordinates has returned a lower value.
+
+**What did it teach us?** D4 ≥ 0.87 is now confirmed as a hard requirement. W3 (D4=0.872, Y=1374), W5 (D4=0.872, Y=1412) and W6 (D4=0.811, Y=1223) directly bracket this. Every high-Y result has D4 ≥ 0.865; every lower result has D4 ≤ 0.811. The W5 result (1412.6) is the best and its coordinates are well-characterised: D1=0.339, D2=0.838, D3=0.946, D4=0.872. D3 appears to be the secondary driver after D4: D3 ≥ 0.94 in both top-2 results.
+
+**Strategy for next week (W7):** Return precisely to the W5 coordinates — `[0.339, 0.838, 0.946, 0.872]`. The peak is confirmed and narrow; the only question is whether a small D3 increase (0.946 → 0.960) could improve further.
+
+---
+
+### Function 6 — 5D Cake Recipe
+
+**Submitted:** [0.408076, 0.411417, 0.765955, 0.787497, 0.022640] → **Y = −0.295649 ← new all-time best**
+
+**Acquisition:** Mean (pure GP posterior mean), Matérn 5/2, standardised Y
+
+**Exploration or exploitation?** Pure exploitation.
+
+**Did it improve on the best?** **Yes.** W6 (−0.296) beats W5 (−0.341), itself a new best. Three consecutive improvements: W3=−0.384, W5=−0.341, W6=−0.296. Now 58.5% better than the initial best (−0.714) and the best portal result across all five ingredient functions tested.
+
+**What did it teach us?** W6's recipe [Flour=0.408, Sugar=0.411, Eggs=0.766, Butter=0.787, Milk=0.023] shows a significant shift: Eggs rose to 0.766 (highest ever used) while Milk fell to 0.023 (near zero). This suggests the optimal recipe is Eggs-dominant with minimal Milk, moderate Flour and Sugar, and moderate-high Butter. The "mean" acquisition strategy has now produced three consecutive improvements — the most consistent run of any function.
+
+**Strategy for next week (W7):** Continue "mean" acquisition. Push Eggs slightly higher (0.766 → 0.780) and Milk lower (0.023 → 0.015). Butter remains anchored near 0.787. Hard constraint: Milk < 0.05.
+
+---
+
+### Function 7 — 6D GBM Hyperparameters
+
+**Submitted:** [0.013000, 0.382899, 0.380152, 0.241963, 0.263374, 0.706897] → **Y = 2.1893**
+
+**Acquisition:** EI β=1.96, ξ=0.05, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Mild exploration — D1 dropped sharply (0.095 → 0.013), the single-dimension perturbation planned in W5.
+
+**Did it improve on the best?** No. W2/W5 best (2.357/2.356) unbeaten. W6 (2.189) is 7% below. The D1=0.013 test has returned a clear answer: D1 near zero is worse than D1≈0.095.
+
+**What did it teach us?** D1=0.095 is not just acceptable — it is near the optimum for this dimension. Moving D1 to 0.013 (effectively zero n_estimators-proxy) reduced output, confirming that some minimum number of estimators is necessary. The W2/W5 result at D1=0.095 is validated as the correct operating point. D5 also dropped to 0.263 (from 0.362 in W2/W5) — this may be a confounding factor; the W2/W5 value D5=0.362 should be restored.
+
+**Hyperparameter tuning insight:** In GBM, near-zero n_estimators means almost no model — the loss surface is well-defined with too few trees, explaining the output drop. BBO correctly identified that D1≈0.095 (a few dozen estimators, scaled) rather than D1≈0.013 (near-zero) is optimal.
+
+**Strategy for next week (W7):** Return to W2/W5 coordinates exactly: `[0.095, 0.365, 0.337, 0.317, 0.362, 0.721]`. The single-dimension test is complete; D1=0.095 is confirmed. Next exploration: micro-perturb D2 (+0.005) in W8 if W7 reproduces the 2.357 result.
+
+---
+
+### Function 8 — 8D ML Hyperparameters
+
+**Submitted:** [0.470879, 0.644207, 0.032040, 0.417095, 0.918293, 0.143389, 0.350175, 0.943810] → **Y = 9.1888**
+
+**Acquisition:** UCB β=2.5, Matérn 5/2, ARD, standardised Y
+
+**Exploration or exploitation?** Exploration in the wrong direction — D1 jumped to 0.471 and D4 to 0.417, both far outside the hard constraint limits.
+
+**Did it improve on the best?** No. W5 (9.800) remains the best. W6 (9.189) is a significant regression — the fourth time in six weeks a query has returned below the W5/W2 best.
+
+**What did it teach us?** The constraint violations are unambiguous: D1=0.471 (limit: <0.18) and D4=0.417 (limit: <0.08) directly caused the regression. The W6 suggestion was produced by the UCB acquisition function exploring high-uncertainty regions in D1 and D4, overriding the hard constraints. This is a failure of acquisition function control, not surrogate quality — the GP correctly predicts uncertainty is high in the D1=0.47 region, but that region is known to be poor from W1 and W3 results.
+
+**Hyperparameter tuning insight:** In ML hyperparameter tuning, high D1 (learning rate / primary param) and high D4 (regularisation parameter) simultaneously is a known anti-pattern — aggressive learning with strong regularisation produces conflicting training signals. The BBO result empirically confirms this.
+
+**Action taken:** Hard dimension constraints will be enforced manually in the W7 query, overriding UCB if necessary. D1 < 0.18, D3 < 0.04, D4 < 0.05, D5 > 0.95 are non-negotiable.
+
+**Strategy for next week (W7):** Return close to W5 best — `[0.130, 0.235, 0.025, 0.030, 0.985, 0.200, 0.330, 0.720]`. Reinstate all hard constraints. Reduce β from 2.5 to 1.5 to reduce the probability of another constraint-violating exploration jump.
+
+---
+
 *Reflections for Week 6 and beyond will be appended below.*

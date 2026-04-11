@@ -120,19 +120,53 @@ Decision: GP remains the production surrogate for all functions. Full analysis i
 
 ---
 
+## Week 5 → Week 6 Strategic Shift
+
+### What happened in week 6
+Week 6 produced two new all-time bests (F2: 0.726, F4: +0.136, F6: −0.296), two confirmed-safe regressions (F3: −0.013, F7: 2.189), and two acquisition-driven failures (F5: 1223, F8: 9.189). F1 continued to return effectively zero.
+
+The dominant pattern in the failures was **UCB over-exploration when hard constraints were not enforced**. F8's acquisition with β=2.5 produced a query at D1=0.471, D4=0.417 — both far outside confirmed safe bounds. F5's D4 reduction from 0.872 to 0.811 violated the D4 > 0.87 hard constraint. Both failures were preventable.
+
+The dominant pattern in the successes was **pure exploitation with GP posterior mean** (F6) and **het-GP tight targeting** (F2). The "mean" acquisition has now produced three consecutive improvements for F6 — the most consistent run of any function. F4's breakthrough to positive Y came from UCB remaining close to the W5 coordinates.
+
+### Key finding: manual constraint enforcement is now mandatory
+
+At this stage of the search (6–7 queries submitted, n = 30–50 including initial data), the GP has enough uncertainty in remote regions to override all prior knowledge if β or ξ is not tightly managed. The solution is to **clip any suggested query outside confirmed bounds before submitting**, regardless of what the acquisition function recommends.
+
+| Acquisition | Appropriate β/ξ | Notes |
+|-------------|----------------|-------|
+| UCB | β ≤ 1.5 | Reduce from 2.5 — only safe with hard clipping |
+| EI | ξ ≤ 0.01 | "Mean" (ξ≈0) is preferred for converged functions |
+| Mean | N/A | Default for F6; consider for F3, F5, F7 |
+
+### Direction for week 7
+
+| Fn | All-time best | W6 result | W6 outcome | W7 action |
+|----|--------------|-----------|------------|-----------|
+| F1 | ≈0 | ≈0 | Cluster exhausted | Abandon cluster — probe [0.08, 0.20] (lower-left) |
+| F2 | **0.726 (W6 NEW)** | 0.726 ↑ | New best | [0.699, 0.920] — probe X₂ slightly lower |
+| F3 | −0.009 (W5) | −0.013 | Stable near-best | [0.438, 0.462, 0.505] — micro-nudge, ξ=0.005 |
+| F4 | **+0.136 (W6 NEW)** | +0.136 ↑ | First positive ever | [0.450, 0.420, 0.365, 0.378] — stay very close, EI ξ=0.01 |
+| F5 | 1412.6 (W5) | 1223 | D4 regression | Return to W5 exact: [0.339, 0.838, 0.946, 0.872] |
+| F6 | **−0.296 (W6 NEW)** | −0.296 ↑ | New best | [0.410, 0.415, 0.780, 0.785, 0.015] — push Eggs↑, Milk↓ |
+| F7 | 2.357 (W2/W5) | 2.189 | D1 test complete | Return to W2/W5 exact: [0.095, 0.365, 0.337, 0.317, 0.362, 0.721] |
+| F8 | 9.800 (W5) | 9.189 | Constraint violation | [0.130, 0.235, 0.025, 0.030, 0.985, 0.200, 0.330, 0.720] — enforce all hard limits |
+
+---
+
 ## Hard Dimension Constraints (Evidence-Based)
 
 These constraints are derived from multiple weeks of observation and should not be violated without strong analytical justification:
 
 | Fn | Constraint | Evidence |
 |----|------------|----------|
-| F2 | X₁ ∈ [0.68, 0.72] | All high-Y observations within this band |
-| F3 | Compound A < 0.70; Compound B ∈ [0.25, 0.55] | A=0.983 (W4) → −0.064; B=0.030 (W3) → −0.123 |
-| F4 | P3 ∈ [0.28, 0.35] | P3=0.499 → −2.37; P3=0.311 → −1.177 (best) |
-| F5 | C1 ∈ [0.28, 0.42]; C4 > 0.85 | C4=0.797 (W4) → 1124 vs C4=0.872 (W3) → 1374 |
-| F6 | Butter ∈ [0.70, 0.78]; Eggs > 0.45; Milk < 0.25 | Butter=0.969 (W4) → −1.294 |
-| F7 | n_est (D1) < 0.12; lr (D2) ∈ [0.33, 0.42]; reg (D6) > 0.68 | W2 best anchors all three |
-| F8 | D1 < 0.25; D3 < 0.07; D4 < 0.08; D5 > 0.90 | GP ARD + GBM permutation importance agree |
+| F2 | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.91, 0.96] | All high-Y results within this band; W6 best at [0.699, 0.932] |
+| F3 | A ∈ [0.43, 0.46]; B ∈ [0.46, 0.50]; C ∈ [0.47, 0.52] | W5/W6 top-2 both within this range |
+| F4 | All dims ∈ [0.35, 0.48] | W6 breakthrough at all-moderate settings; any extreme produces negative Y |
+| F5 | C1 ∈ [0.30, 0.36]; C4 > 0.87 | C4=0.811 (W6) → 1223 vs C4=0.872 (W5) → 1412 |
+| F6 | Butter ∈ [0.77, 0.80]; Eggs > 0.75; Milk < 0.05 | W6 best: Eggs=0.766, Milk=0.023 |
+| F7 | D1 ∈ [0.085, 0.105]; D2 ∈ [0.355, 0.375]; D6 > 0.70 | D1=0.013 (W6) → 2.189 vs D1=0.095 (W2/W5) → 2.357 |
+| F8 | D1 < 0.18; D3 < 0.04; D4 < 0.05; D5 > 0.95 | D1=0.471 (W6) → 9.189; W5: D1=0.136, D3=0.025 → 9.800 |
 
 ---
 
@@ -150,3 +184,7 @@ These constraints are derived from multiple weeks of observation and should not 
 | 4 | **GBM cannot replace GP at current dataset sizes.** GBM achieves LOO R²=0.798 vs GP's 0.969 for F8, and memorises training data (in-sample R²=0.9995). Cross-validation is essential for surrogate model selection — in-sample metrics are meaningless in the BBO context. |
 | 4 | **GP+GBM ensemble breaks when GBM overfits.** Residual GP receives near-zero residuals, collapsing its posterior std ≈ 0 → acquisition function explores nothing. Always validate ensemble components individually. |
 | 4 | **Deep Ensemble (K=10) underestimates uncertainty.** 95% PI coverage = 0.907 vs target 0.950 for F8 — all K models agree in extrapolation. GP's coverage = 0.977. Use GP for calibrated uncertainty. |
+| 6 | **Enforce hard dimension constraints manually.** UCB with β=2.5 will override any implicit boundary knowledge and push queries into known-bad regions. If the acquisition suggests a value outside a confirmed constraint, clip it before submitting. |
+| 6 | **Single-dimension perturbation tests have clear ROI.** F7's D1 test (0.095 → 0.013) returned a crisp answer in one query. When the optimum is narrow and deterministic, this protocol is more informative than general EI exploration. |
+| 6 | **Cluster exhaustion is a valid stopping criterion.** Six F1 queries in the same region with monotonically decreasing Y confirms the hotspot is elsewhere. Move to a completely new sub-domain rather than continuing to refine within a barren cluster. |
+| 6 | **Positive Y for F4 confirms that BBO rediscovers ML tuning intuition.** The "moderate everything" optimum at [0.45, 0.42, 0.36, 0.38] is consistent with regularisation theory — extreme settings on any dimension produce worse models. |
