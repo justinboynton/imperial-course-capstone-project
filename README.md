@@ -23,15 +23,6 @@ Black-box optimisation (BBO) sits at the heart of many practical ML challenges:
 
 The core insight is that *how* you decide where to query next is itself an ML problem. Using a surrogate model (a Gaussian Process in this case) to approximate the unknown function and an acquisition function to decide where to query next is the foundation of **Bayesian Optimisation** — one of the most sample-efficient strategies known.
 
-### Career relevance
-
-BBO and Bayesian Optimisation are directly applicable to:
-
-- **ML Engineering** — automated hyperparameter tuning is standard practice; understanding BO makes you a more effective engineer who can go beyond grid search and random search
-- **MLOps** — Bayesian optimisation underlies tools like Optuna, Ray Tune and Google Vizier; understanding its internals helps when those tools need to be configured or extended
-- **Research** — the skill of reasoning about an unknown objective from limited evidence, balancing exploration and exploitation, and iterating a strategy based on outcomes is transferable to any empirical research setting
-- **Data Science consulting** — clients often need optimisation under real-world constraints (cost, time, number of experiments); BBO provides a principled framework to frame and solve these problems
-
 ---
 
 ## Section 2: Inputs and Outputs
@@ -61,18 +52,16 @@ Each function accepts a **normalised input vector** where every dimension is bou
 
 Each function returns a **single scalar value** — a real number representing the performance signal for that input. The portal returns this value after processing.
 
-Output characteristics vary significantly by function:
-
 | Function | Output range (observed) | Sign | Domain context |
 |----------|------------------------|------|----------------|
-| F1 | ≈ [−0.004, 0] | Negative/zero | Contamination signal — very small values everywhere except near the source |
-| F2 | [−0.066, 0.611] | Mixed | Noisy log-likelihood |
-| F3 | [−0.399, −0.035] | Negative | Negative side-effect count; maximise toward 0 |
-| F4 | [−32.6, −4.0] | Negative | Difference from baseline; maximise toward 0 |
-| F5 | [0.113, 1088.9] | Positive | Chemical yield — unimodal, one clear peak |
-| F6 | [−2.57, −0.71] | Negative | Negative penalty score; maximise toward 0 |
-| F7 | [0.003, 1.365] | Positive | ML model performance score |
-| F8 | [5.59, 9.60] | Positive | Validation accuracy (scaled) |
+| F1 | ≈ 0 | Near-zero | Contamination signal — extremely localised; hotspot not yet found |
+| F2 | [−0.066, 0.649] | Mixed | Noisy log-likelihood |
+| F3 | [−0.399, −0.009] | Negative | Negative side-effect count; maximise toward 0 |
+| F4 | [−32.6, −1.18] | Negative | Difference from baseline; maximise toward 0 |
+| F5 | [50.4, 1412.6] | Positive | Chemical yield — unimodal, one clear peak |
+| F6 | [−2.57, −0.341] | Negative | Negative penalty score; maximise toward 0 |
+| F7 | [0.003, 2.358] | Positive | ML model performance score |
+| F8 | [5.59, 9.800] | Positive | Validation accuracy (scaled) |
 
 ---
 
@@ -92,7 +81,7 @@ The objective for every function is **maximisation** — find the input vector t
 | **Initial data only** | Each function starts with 10–40 provided data points; these are the only prior observations |
 | **Dimensionality growth** | Functions range from 2D (F1, F2) up to 8D (F8), making exhaustive search infeasible for higher-dimensional functions |
 | **Noisy outputs** | Some functions (e.g. F2) produce noisy outputs, making it harder to distinguish signal from variance |
-| **Local optima risk** | Some functions have multiple peaks (e.g. F1's contamination model may have two sources); finding a local maximum may not be the global one |
+| **Local optima risk** | Some functions have multiple peaks; finding a local maximum may not be the global one |
 
 ### What "success" looks like
 
@@ -104,101 +93,89 @@ A successful submission is not necessarily the global maximum — it is **a high
 
 ### Core framework: Gaussian Process Bayesian Optimisation
 
-The primary strategy throughout this project is **Bayesian Optimisation (BO)** using a **Gaussian Process (GP) surrogate model**. The GP is fitted on all available observations (provided initial data + all weekly portal submissions combined) and used to:
+The primary strategy is **Bayesian Optimisation (BO)** using a **Gaussian Process (GP) surrogate model**. The GP is fitted on all available observations (initial data + all weekly portal submissions) and used to:
 
 1. **Predict the expected output** at any unsampled point (posterior mean)
 2. **Quantify uncertainty** at any unsampled point (posterior standard deviation)
 3. **Guide the next query** via an acquisition function that balances exploration and exploitation
 
-This approach is implemented in `capstone_app.py` (Streamlit dashboard) and supports per-function configuration of kernel, acquisition function and hyperparameters.
+This is implemented in `capstone_app.py` (Streamlit dashboard) and supports per-function configuration of kernel, acquisition function and hyperparameters.
+
+### Active surrogate improvements
+
+The following enhancements have been applied on top of the baseline GP. See `MODEL_CARD.md` for the full engineering changelog.
+
+| Feature | Functions | What it does |
+|---------|-----------|-------------|
+| **ARD kernel** | F4, F7, F8 | Learns a separate length-scale per input dimension; automatically down-weights irrelevant dimensions |
+| **Output standardisation** | F2–F8 | Z-scores Y before fitting so β and ξ acquisition parameters have consistent meaning across all functions |
+| **Heteroscedastic GP** | F2 | Assigns higher noise to the noisy peak region via LOO-estimated per-point alpha; prevents acquisition function from chasing noise-driven gradients |
+| **arcsinh Y-transform** | F1 | Spreads near-zero values so the GP can detect otherwise invisible signal gradients |
 
 ### Acquisition functions used
 
 | Function | Strategy | Rationale |
 |----------|----------|-----------|
-| **Upper Confidence Bound (UCB)** | `μ(x) + β·σ(x)` | Explicit exploration–exploitation trade-off via β; favoured for functions where the landscape is uncertain (F1, F2, F4, F8) |
-| **Expected Improvement (EI)** | Probability-weighted gain over current best | Concentrates queries near the current best; favoured for unimodal or near-exploitation settings (F3, F5, F6, F7) |
-| **Probability of Improvement (PI)** | Probability of exceeding best + ξ | Available as a supplementary strategy; useful when a conservative improvement is acceptable |
+| **UCB** | `μ(x) + β·σ(x)` | Explicit explore/exploit via β; used for uncertain landscapes (F1, F2, F8) |
+| **EI** | Probability-weighted gain over current best | Concentrates queries near the current best; used for structured landscapes (F3, F5, F6, F7) |
+| **GP Posterior Mean** | `μ(x)` only | Pure exploitation; used for F5 once the unimodal peak was located |
 
 ### Kernel selection
 
-The kernel defines the assumed smoothness of the unknown function:
-
-| Kernel | When used | Why |
+| Kernel | Functions | Why |
 |--------|----------|-----|
-| **Matérn 5/2** | Most functions (F2–F4, F6–F8) | Allows moderate roughness; robust assumption for real-world functions that are smooth but not infinitely so |
-| **RBF** | F5 (chemical yield) | The function is described as unimodal; RBF's infinite smoothness assumption is appropriate when a single peak exists |
-| **Matérn 5/2** | F1 (contamination) | Switched from RBF after week 1 — the near-zero output everywhere except near the source suggests a sharp, localised response that Matérn handles better |
+| **Matérn 5/2** | F1–F4, F6–F8 | Moderate roughness; robust for real-world functions that are smooth but not infinitely differentiable |
+| **RBF** | F5 | Unimodal landscape; infinite smoothness assumption is appropriate for a single clean peak |
 
-Kernels are kept **fixed per function throughout the competition** once set. Changing the kernel mid-run introduces inconsistency in the GP's beliefs about the function landscape without strong evidence justifying the change.
+### Why not neural networks or SVMs?
 
-### Balancing exploration and exploitation
-
-The exploration–exploitation trade-off is managed at two levels:
-
-**1. Acquisition function choice**
-- EI is used when the GP has a credible estimate of the peak location (exploit)
-- UCB with higher β is used when the landscape remains uncertain (explore)
-
-**2. Per-function β and ξ tuning**
-- Lower β (≈1.5–2.0): more exploitation-focused
-- Higher β (≈2.5–3.0): more exploration-focused
-- ξ (EI/PI offset): kept small (0.01–0.05) to encourage incremental improvement near the current best
-
-**3. Manual overrides**
-For F1 — where the GP has found almost no signal — pure GP guidance is overridden with a systematic quadrant-search strategy. The 10 initial points cluster in the top-right quadrant. Weeks 2 onward explore each of the three remaining quadrants in turn.
-
-### Why not SVMs or logistic regression?
-
-Both were considered as alternative surrogate approaches. SVMs via Support Vector Regression (SVR) can model smooth functions, but provide no uncertainty estimate — making them unsuitable for principled exploration. Logistic regression is a classification method and is not applicable to continuous output regression. The GP remains the correct tool here because it is the only commonly available model that simultaneously provides **predictions and calibrated uncertainty estimates** over a continuous domain.
+SVMs via SVR can model smooth functions but provide no uncertainty estimate — making them unsuitable for principled acquisition functions. Neural networks were empirically evaluated (`analysis/05_nn_surrogate_analysis.ipynb`): at n ≤ 44, a Deep Ensemble (K=10) achieved LOO R²=−0.417 on F7 and 0.906 on F8, versus the GP's 0.563 and 0.985 respectively. The GP's parameter efficiency (9 hyperparameters vs 289 MLP parameters for F8) and analytically calibrated uncertainty make it the correct choice at this sample size.
 
 ### AI-assisted strategy analysis
 
-The dashboard integrates **Anthropic Claude** (claude-sonnet-4-6) to generate per-function strategy analysis. At each stage, Claude receives: function metadata, all initial data statistics, all portal observations so far, and the current best result. It returns a structured analysis covering landscape assessment, acquisition strategy review, a recommended next query and overall strategic direction. These analyses are stored persistently in `capstone_history.json` and viewable via the app's AI tab.
-
-### Exploratory analysis
-
-An EDA notebook (`analysis/01_initial_data_eda.ipynb`) was produced in week 1 to document the initial data landscape before any portal submissions. Key findings:
-
-- All 8 week 1 submissions landed below the initial best — caused by the initial `.npy` data not being integrated into the GP at query time. Corrected from week 2 onward.
-- F5 has the largest opportunity — initial best Y=1088.86, week 1 returned 50.44. Unimodal structure makes this highly exploitable.
-- F1 is the hardest — near-zero output everywhere; hotspot not yet located.
-- Over-exploration was the dominant week 1 error across all 8 functions.
+The dashboard integrates **Anthropic Claude** to generate per-function strategy analysis. Claude receives function metadata, initial data statistics, all portal observations, and the current best result, and returns a structured recommendation. Analyses are stored persistently in `capstone_history.json`.
 
 ---
 
 ## Function Summary
 
-| Fn | Dims | Description | Initial Best Y | Week 1 Y | Current Best Y | Acq | Kernel |
-|----|------|-------------|---------------|----------|---------------|-----|--------|
-| 1  | 2D   | Contamination/radiation field | ≈0.000 | ≈0.000 | ≈0.000 | UCB β=2.0 | Matérn 5/2 |
-| 2  | 2D   | Noisy log-likelihood | 0.6112 | 0.0259 | 0.6112 | UCB β=2.5 | Matérn 5/2 |
-| 3  | 3D   | Drug compound combinations | -0.0348 | -0.0417 | -0.0348 | EI ξ=0.02 | Matérn 5/2 |
-| 4  | 4D   | Warehouse ML hyperparameters | -4.0255 | -21.254 | -4.0255 | UCB β=2.0 | Matérn 5/2 |
-| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | 50.44 | 1088.86 | EI ξ=0.01 | RBF |
-| 6  | 5D   | Cake recipe (negative penalty) | -0.7143 | -1.8257 | -0.7143 | EI ξ=0.02 | Matérn 5/2 |
-| 7  | 6D   | GBM hyperparameter tuning | 1.3650 | 0.1207 | 1.3650 | EI ξ=0.05 | Matérn 5/2 |
-| 8  | 8D   | Complex ML hyperparameters | 9.5985 | 9.2597 | 9.5985 | UCB β=2.5 | Matérn 5/2 |
+| Fn | Dims | Description | Initial Best Y | Portal Best Y | Overall Best Y | Best Week |
+|----|------|-------------|---------------|--------------|----------------|-----------|
+| 1  | 2D   | Contamination/radiation field | ≈0.000 | ≈0.000 | ≈0.000 | — |
+| 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.6485** | 0.6485 | W4 |
+| 3  | 3D   | Drug compound combinations | −0.0348 | **−0.0090** | −0.0090 | W5 ↑ |
+| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **−1.1765** | −1.1765 | W2 |
+| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1412.63** | 1412.63 | W5 ↑ |
+| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.3413** | −0.3413 | W5 ↑ |
+| 7  | 6D   | GBM hyperparameter tuning | 1.3650 | **2.3576** | 2.3576 | W2 |
+| 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8001** | 9.8001 | W5 ↑ |
 
-*Current Best Y = best of initial data and all portal submissions combined.*
+**7 of 8 functions have beaten the initial data best. F1 remains the only unsolved function.**
 
 ---
 
 ## Repository Structure
 
 ```
-├── capstone_app.py              # Streamlit optimisation dashboard
-├── capstone_history.json        # Observation store (updated each week)
-├── initial_data/                # Provided initial .npy observations
-│   ├── function_1/ ... function_8/
-├── analysis/                    # Exploratory analysis notebooks and charts
-│   └── 01_initial_data_eda.ipynb
+├── capstone_app.py              # Streamlit optimisation dashboard (primary tool)
+├── capstone_optimiser.py        # Legacy CLI toolkit (superseded by dashboard)
+├── capstone_history.json        # Observation store — all submissions and AI analyses
+├── requirements.txt             # Pinned Python dependencies
+├── initial_data/                # Provided initial .npy observations (read-only)
+│   └── function_1/ … function_8/
+├── analysis/                    # Exploratory analysis notebooks
+│   ├── 01_initial_data_eda.ipynb          # Week 1 landscape exploration
+│   ├── 02_function2_svr_exploration.ipynb # F2: SVR vs GP comparison
+│   ├── 03_function8_rf_surrogate.ipynb    # F8: Random Forest surrogate evaluation
+│   ├── 04_function8_gpgbm_ensemble.ipynb  # F8: GP vs GBM vs ensemble comparison
+│   ├── 05_nn_surrogate_analysis.ipynb     # NN/CNN viability analysis (all functions)
+│   └── figures/                           # Charts generated by the notebooks above
 ├── weekly_snapshots/            # Per-week submission records
-│   └── week_01.json
+│   ├── week_01.json … week_05.json
 ├── README.md                    # This file
-├── MODEL_CARD.md                # Per-function surrogate model decisions
-├── REFLECTIONS.md               # Weekly reflections (all functions)
-└── STRATEGY.md                  # High-level strategy evolution
+├── MODEL_CARD.md                # Per-function surrogate config, history and changelog
+├── REFLECTIONS.md               # Weekly reflections and engineering decisions
+└── STRATEGY.md                  # High-level strategy evolution log
 ```
 
 ---
@@ -206,7 +183,7 @@ An EDA notebook (`analysis/01_initial_data_eda.ipynb`) was produced in week 1 to
 ## Running the App
 
 ```bash
-pip install streamlit numpy pandas scikit-learn scipy plotly anthropic
+pip install -r requirements.txt
 streamlit run capstone_app.py
 ```
 
@@ -219,9 +196,25 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 
 ## Weekly Progress Log
 
-| Week | Date | Key Action | Key Learning |
-|------|------|------------|--------------|
-| 1 | 2026-04-04 | Initial submissions across all 8 functions | Initial .npy data not yet integrated into GP — all queries below initial best. Fixed for week 2. |
+| Week | Date | Key submissions | Notable outcomes |
+|------|------|-----------------|-----------------|
+| 1 | 2026-04-04 | All 8 functions | All below initial best — initial .npy data not yet integrated into GP. Fixed for W2. |
+| 2 | 2026-04-11 | All 8 functions | F4 (−1.18), F5 (1138.9), F7 (2.36), F8 (9.70) all beat initial best. F2, F3, F6 below initial. Over-exploration dominant error. |
+| 3 | 2026-04-18 | All 8 functions | F5 new best (1374.5). F6 new best (−0.384). F2 near initial (0.493). F8 regression (7.32) — exploration query with high D2/D4. |
+| 4 | 2026-04-25 | All 8 functions | F2 **beats** initial best (0.649). F8 recovered (8.28). F6 regression (−1.29) — over-exploitation in wrong region. |
+| 5 | 2026-04-10 | All 8 functions | **Best week to date: 4 new all-time bests** — F3 (−0.0090), F5 (1412.6), F6 (−0.341), F8 (9.800). F7 reproduced W2 result exactly, confirming it is deterministic. F2 regression (0.513) reveals X₂ ≈ 0.96 sensitivity. F4 partial recovery but W2 best still unchallenged. F1: 5 consecutive zeros — lower-left also fails. |
+
+---
+
+## Recent Engineering Changes
+
+The following improvements have been made to the surrogate pipeline since Week 1. Full details are in `MODEL_CARD.md` under *Engineering Changes Log*.
+
+| Change | Applied | Scope |
+|--------|---------|-------|
+| ARD kernels | Between W1–W2 | F4, F7, F8 |
+| Output standardisation (`standardize` Y-transform) | Between W3–W4 | F2–F8 |
+| Heteroscedastic GP (LOO per-point alpha) | Between W4–W5 | F2 |
 
 ---
 

@@ -1126,7 +1126,7 @@ Be concise and specific. Use markdown formatting."""
         client = _anthropic.Anthropic(api_key=api_key)
         msg = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=1200,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
         return msg.content[0].text
@@ -1549,10 +1549,10 @@ with right_col:
                     (fn_meta[i].get("acq","").upper() if i < len(fn_meta) else "") for i in range(len(Y))
                 ]
                 df_cols["β"] = [
-                    (fn_meta[i].get("beta","") if i < len(fn_meta) else "") for i in range(len(Y))
+                    (str(fn_meta[i].get("beta","")) if i < len(fn_meta) else "") for i in range(len(Y))
                 ]
                 df_cols["ξ"] = [
-                    (fn_meta[i].get("xi","") if i < len(fn_meta) else "") for i in range(len(Y))
+                    (str(fn_meta[i].get("xi","")) if i < len(fn_meta) else "") for i in range(len(Y))
                 ]
                 df_cols["Kernel"] = [
                     (fn_meta[i].get("kernel","") if i < len(fn_meta) else "") for i in range(len(Y))
