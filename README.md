@@ -57,8 +57,8 @@ Each function returns a **single scalar value** — a real number representing t
 | F1 | ≈ 0 | Near-zero | Contamination signal — extremely localised; hotspot not yet found |
 | F2 | [−0.066, 0.726] | Mixed | Noisy log-likelihood |
 | F3 | [−0.399, −0.009] | Negative | Negative side-effect count; maximise toward 0 |
-| F4 | [−32.6, +0.136] | Mixed | Difference from baseline; first positive result in W6 |
-| F5 | [50.4, 1412.6] | Positive | Chemical yield — unimodal, one clear peak |
+| F4 | [−32.6, +0.330] | Mixed | Difference from baseline; second consecutive positive result in W7 |
+| F5 | [50.4, 1482.4] | Positive | Chemical yield — unimodal, one clear peak |
 | F6 | [−2.57, −0.296] | Negative | Negative penalty score; maximise toward 0 |
 | F7 | [0.003, 2.358] | Positive | ML model performance score |
 | F8 | [5.59, 9.800] | Positive | Validation accuracy (scaled) |
@@ -107,10 +107,11 @@ The following enhancements have been applied on top of the baseline GP. See `MOD
 
 | Feature | Functions | What it does |
 |---------|-----------|-------------|
-| **ARD kernel** | F4, F7, F8 | Learns a separate length-scale per input dimension; automatically down-weights irrelevant dimensions |
+| **ARD kernel** | F4, F8 | Learns a separate length-scale per input dimension; automatically down-weights irrelevant dimensions |
 | **Output standardisation** | F2–F8 | Z-scores Y before fitting so β and ξ acquisition parameters have consistent meaning across all functions |
 | **Heteroscedastic GP** | F2 | Assigns higher noise to the noisy peak region via LOO-estimated per-point alpha; prevents acquisition function from chasing noise-driven gradients |
 | **arcsinh Y-transform** | F1 | Spreads near-zero values so the GP can detect otherwise invisible signal gradients |
+| **Kernel variant optimisation** | F4, F7 | Per-function kernel selection via LOO R² comparison (notebook 06): F4 switched to Matérn 3/2, F7 to Rational Quadratic |
 
 ### Acquisition functions used
 
@@ -124,12 +125,14 @@ The following enhancements have been applied on top of the baseline GP. See `MOD
 
 | Kernel | Functions | Why |
 |--------|----------|-----|
-| **Matérn 5/2** | F1–F4, F6–F8 | Moderate roughness; robust for real-world functions that are smooth but not infinitely differentiable |
+| **Matérn 5/2** | F1, F2, F3, F6, F8 | Moderate roughness; robust for real-world functions that are smooth but not infinitely differentiable |
+| **Matérn 3/2** | F4 | Rougher than 5/2; LOO R² improved from 0.485 → 0.961 (notebook 06). F4's sharp bowl-shape with abrupt peak at moderate settings requires the once-differentiable kernel |
+| **Rational Quadratic** | F7 | Mixture of RBF at all length-scales; LOO R² 0.868 vs Matérn 5/2's 0.493–0.722 (notebook 06). Captures both broad flat regions and narrow peak simultaneously |
 | **RBF** | F5 | Unimodal landscape; infinite smoothness assumption is appropriate for a single clean peak |
 
-### Why not neural networks or SVMs?
+### Why not neural networks, SVMs or NGBoost?
 
-SVMs via SVR can model smooth functions but provide no uncertainty estimate — making them unsuitable for principled acquisition functions. Neural networks were empirically evaluated (`analysis/05_nn_surrogate_analysis.ipynb`): at n ≤ 44, a Deep Ensemble (K=10) achieved LOO R²=−0.417 on F7 and 0.906 on F8, versus the GP's 0.563 and 0.985 respectively. The GP's parameter efficiency (9 hyperparameters vs 289 MLP parameters for F8) and analytically calibrated uncertainty make it the correct choice at this sample size.
+SVMs via SVR can model smooth functions but provide no uncertainty estimate — making them unsuitable for principled acquisition functions. Neural networks were empirically evaluated (`analysis/05_nn_surrogate_analysis.ipynb`): at n ≤ 44, a Deep Ensemble (K=10) achieved LOO R²=−0.417 on F7 and 0.906 on F8, versus the GP's 0.563 and 0.985 respectively. NGBoost (Natural Gradient Boosting) was tested in `analysis/06_kernel_variants_ngboost.ipynb`: while it achieved reasonable R² for F4 (0.874), its 95% PI coverage was catastrophically low — 0.250 for F4, 0.065 for F8 — meaning the uncertainty estimates are meaningless for acquisition. The GP's parameter efficiency and analytically calibrated uncertainty make it the correct choice at current sample sizes.
 
 ### AI-assisted strategy analysis
 
@@ -142,15 +145,15 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 | Fn | Dims | Description | Initial Best Y | Portal Best Y | Overall Best Y | Best Week |
 |----|------|-------------|---------------|--------------|----------------|-----------|
 | 1  | 2D   | Contamination/radiation field | ≈0.000 | ≈0.000 | ≈0.000 | — |
-| 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.7260** | 0.7260 | W6 ↑ |
-| 3  | 3D   | Drug compound combinations | −0.0348 | **−0.0090** | −0.0090 | W5 ↑ |
-| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **+0.1362** | +0.1362 | W6 ↑ |
-| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1412.63** | 1412.63 | W5 ↑ |
-| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.2956** | −0.2956 | W6 ↑ |
+| 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.7260** | 0.7260 | W6 |
+| 3  | 3D   | Drug compound combinations | −0.0348 | **−0.0090** | −0.0090 | W5 |
+| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **+0.3298** | +0.3298 | W7 ↑ |
+| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1482.41** | 1482.41 | W7 ↑ |
+| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.2956** | −0.2956 | W6 |
 | 7  | 6D   | GBM hyperparameter tuning | 1.3650 | **2.3576** | 2.3576 | W2 |
-| 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8001** | 9.8001 | W5 ↑ |
+| 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8001** | 9.8001 | W5 |
 
-**7 of 8 functions have beaten the initial data best. F4 crossed zero for the first time in W6. F1 remains the only unsolved function.**
+**7 of 8 functions have beaten the initial data best. F4 continued its positive streak in W7 (+0.330). F5 set a new all-time best (1482.4). F1 remains the only unsolved function — hotspot analysis (notebook 07) identified a candidate for W8.**
 
 ---
 
@@ -169,6 +172,8 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 │   ├── 03_function8_rf_surrogate.ipynb    # F8: Random Forest surrogate evaluation
 │   ├── 04_function8_gpgbm_ensemble.ipynb  # F8: GP vs GBM vs ensemble comparison
 │   ├── 05_nn_surrogate_analysis.ipynb     # NN/CNN viability analysis (all functions)
+│   ├── 06_kernel_variants_ngboost.ipynb   # GP kernel comparison + NGBoost evaluation
+│   ├── 07_function1_hotspot_hunt.ipynb    # F1 log-space analysis and hotspot identification
 │   └── figures/                           # Charts generated by the notebooks above
 ├── weekly_snapshots/            # Per-week submission records
 │   ├── week_01.json … week_05.json
@@ -204,6 +209,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | 4 | 2026-04-25 | All 8 functions | F2 **beats** initial best (0.649). F8 recovered (8.28). F6 regression (−1.29) — over-exploitation in wrong region. |
 | 5 | 2026-04-10 | All 8 functions | **Best week to date: 4 new all-time bests** — F3 (−0.0090), F5 (1412.6), F6 (−0.341), F8 (9.800). F7 reproduced W2 result exactly, confirming it is deterministic. F2 regression (0.513) reveals X₂ ≈ 0.96 sensitivity. F4 partial recovery but W2 best still unchallenged. F1: 5 consecutive zeros — lower-left also fails. |
 | 6 | 2026-04-17 | All 8 functions | **3 new all-time bests** — F2 (0.726), F4 (+0.136, first positive ever), F6 (−0.296). F3 stable near-best (−0.013). F7 D1 perturbation test (2.189) confirms D1=0.095 is optimal. F5 regression (1223) — D4 violated. F8 regression (9.189) — UCB pushed D1/D4 outside hard constraints. F1: sixth consecutive zero; cluster abandoned. |
+| 7 | 2026-04-24 | All 8 functions | **2 new all-time bests** — F4 (+0.330, Matérn 3/2 kernel switch validated) and F5 (1482.4, new peak). F7 near-perfect reproduction (2.347 vs 2.358 best, RQ kernel). F8 recovered (9.775, hard constraints enforced). F2 regression (0.585). F6 regression (−0.452). F3 slight regression (−0.014). F1: W7 lower-left probe failed (−3.1×10⁻¹¹⁶); hotspot hunt analysis (notebook 07) identifies [0.691, 0.707] as W8 candidate. Between-weeks: kernel variants analysis switched F4 to Matérn 3/2 and F7 to Rational Quadratic; NGBoost rejected for all functions. |
 
 ---
 
@@ -213,9 +219,12 @@ The following improvements have been made to the surrogate pipeline since Week 1
 
 | Change | Applied | Scope |
 |--------|---------|-------|
-| ARD kernels | Between W1–W2 | F4, F7, F8 |
+| ARD kernels | Between W1–W2 | F4, F8 |
 | Output standardisation (`standardize` Y-transform) | Between W3–W4 | F2–F8 |
 | Heteroscedastic GP (LOO per-point alpha) | Between W4–W5 | F2 |
+| Kernel variant optimisation (LOO R² comparison) | Between W6–W7 | F4 → Matérn 3/2, F7 → Rational Quadratic |
+| NGBoost evaluation and rejection | Between W6–W7 | F4, F7, F8 (rejected: coverage 2–25%) |
+| F1 log-space hotspot analysis | Between W6–W7 | F1 (radial decay identified; candidate [0.691, 0.707]) |
 
 ---
 
@@ -232,6 +241,7 @@ The design choices in this project are grounded in established Bayesian Optimisa
 | Kersting, Plagemann, Pfaff & Burgard (2007). *Most Likely Heteroscedastic Gaussian Process Regression.* ICML. | Input-dependent noise modelling — direct motivation for the per-point LOO alpha array used in F2's heteroscedastic GP |
 | Lakshminarayanan, Pritzel & Blundell (2017). *Simple and Scalable Predictive Uncertainty Estimation using Deep Ensembles.* NeurIPS. | Deep Ensemble uncertainty method — empirically tested in `analysis/05_nn_surrogate_analysis.ipynb` and found inferior to the GP at n ≤ 44 |
 | Hutter, Hoos & Leyton-Brown (2011). *Sequential Model-Based Algorithm Configuration.* LION. | Random Forest surrogate with tree-variance uncertainty — evaluated in `analysis/03_function8_rf_surrogate.ipynb`; RF feature importance used to cross-validate GP ARD findings for F8 |
+| Duan et al. (2020). *NGBoost: Natural Gradient Boosting for Probabilistic Prediction.* ICML. | Natural Gradient Boosting with Gaussian output — evaluated in `analysis/06_kernel_variants_ngboost.ipynb`; 95% PI coverage too low (2–25%) for BBO use at n ≤ 46 |
 | Pedregosa et al. (2011). *Scikit-learn: Machine Learning in Python.* JMLR. | Core implementation library — `GaussianProcessRegressor` with native array alpha (heteroscedastic GP), ARD length-scales, and LOO cross-validation |
 
 ### Looking ahead
