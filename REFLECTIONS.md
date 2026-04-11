@@ -1006,4 +1006,61 @@ If sample sizes grow beyond ~60 observations for any function, the most promisin
 
 ---
 
-*Reflections for Week 6 and beyond will be appended below.*
+---
+
+## Surrogate Analysis — GP Kernel Variants and NGBoost (Between W6 and W7)
+
+Analysis notebook: `analysis/06_kernel_variants_ngboost.ipynb`
+
+### Motivation
+
+Two open questions after W6:
+1. Is Matérn 5/2 the optimal GP kernel for each function now that we have more data?
+2. Can NGBoost — which outputs a full Gaussian distribution without bootstrap tricks — match the GP on predictive accuracy and uncertainty calibration?
+
+Functions tested: F4 (4D, n=36), F7 (6D, n=36), F8 (8D, n=46).
+
+### GP Kernel Variants — Results
+
+Four kernels compared via Leave-One-Out cross-validation:
+
+| Function | Kernel | LOO R² | 95% PI Coverage |
+|----------|--------|--------|----------------|
+| F4 | **Matérn 3/2 ARD** | **0.961** | 0.889 |
+| F4 | Matérn 5/2 ARD (was production) | 0.485 | 0.722 |
+| F4 | Rational Quadratic | 0.919 | 0.889 |
+| F7 | Matérn 5/2 ARD | 0.493–0.722 | 0.917–0.972 |
+| F7 | **Rational Quadratic** | **0.868** | 1.000 |
+| F7 | Matérn + Linear | 0.667 | 0.944 |
+| F8 | Rational Quadratic | 0.870 | **0.935** |
+| F8 | Matérn 5/2 ARD | 0.861 | 0.848 |
+
+**F4 is the critical finding.** The production Matérn 5/2 kernel achieves LOO R²=0.485 for F4 — effectively poor generalisation. Switching to Matérn 3/2 improves this to 0.961. The rougher kernel (once-differentiable rather than twice-differentiable) better matches F4's landscape structure: a bowl-shape with a sharp peak at all-moderate settings. This means the GP surrogate used for W1–W6 was significantly under-fitting F4's curvature, and queries were based on an inferior landscape model. Switching to Matérn 3/2 immediately for W7.
+
+**F7: Rational Quadratic outperforms Matérn 5/2** (0.868 vs 0.493–0.722). RQ's multi-scale structure captures both the broad flat landscape and the narrow peak at D1≈0.095. However, coverage=1.000 indicates over-conservative uncertainty — the model is spreading probability too widely. When deploying for W7, β should be reduced (1.0 rather than 1.96) to compensate.
+
+**F8: Marginal RQ improvement** (0.870 vs 0.861, coverage 0.935 vs 0.848). The RQ improvement in coverage is actually meaningful — 0.935 is much closer to the 0.95 target than 0.848. Will test RQ for F8 in W7 on a trial basis.
+
+### NGBoost vs GP — Results
+
+| Function | Model | R² | 95% Coverage |
+|----------|-------|----|-------------|
+| F4 | GP Matérn 5/2 (LOO) | 0.474 | 0.667 |
+| F4 | NGBoost stochastic (5-fold) | 0.874 | **0.250** |
+| F7 | GP Matérn 5/2 (LOO) | **0.722** | **0.972** |
+| F7 | NGBoost best (stochastic) | 0.641 | 0.333 |
+| F8 | GP Matérn 5/2 (LOO) | **0.860** | 0.848 |
+| F8 | NGBoost best (stochastic) | 0.765 | **0.065** |
+
+NGBoost is entirely unsuitable as a BBO surrogate at current dataset sizes. While the stochastic variant (minibatch_frac=0.5) achieves reasonable R² for F4 (0.874), its 95% PI coverage is 0.250 — meaning the stated 95% intervals contain the true value only 25% of the time. For F8 it is even worse at 0.065. An acquisition function based on NGBoost uncertainty would be severely over-exploitative: it would see falsely low uncertainty everywhere and generate queries that cluster tightly rather than exploring.
+
+The root cause is sample size: with n=36–46, individual decision trees are too shallow and variable to produce reliable variance estimates for the Normal distribution. The GP's analytical posterior covariance, derived from the kernel's geometric structure, is inherently better calibrated at these scales.
+
+**NGBoost feature importance cross-check:** Despite the calibration failure, NGBoost's feature importances agree with GP ARD rankings for F8 — both identify D3 and D5 as the dominant dimensions. This is the same finding as the RF analysis in notebook 03, providing three-way independent confirmation.
+
+### Actions taken
+
+- F4: Switched production surrogate to Matérn 3/2 ARD in `capstone_app.py`
+- F7: Switched to Rational Quadratic in `capstone_app.py`, β reduced from 1.96 to 1.0
+- F8: Testing Rational Quadratic for W7 (marginal but coverage improvement)
+- NGBoost: Rejected for all functions — revisit when n ≥ 100

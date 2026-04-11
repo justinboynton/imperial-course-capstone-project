@@ -294,12 +294,12 @@ FUNCTION_CONFIG = {
     },
     4: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
-        "kernel": "matern", "acquisition": "ucb", "beta": 2.0, "xi": 0.05,
+        "kernel": "matern32", "acquisition": "ei", "beta": 1.5, "xi": 0.01,
         "ard": True,
         "y_transform": "standardize",
         "description": "4D warehouse ML hyperparameter tuning",
         "dim_labels": ["Param 1", "Param 2", "Param 3", "Param 4"],
-        "notes": "Rough landscape with local optima — stay exploratory early. Dynamic environment means old observations may drift in value. ARD enabled: P3 shows no significant correlation (r=−0.16, p=0.38) while P1/P4 dominate (r≈−0.50). ARD learns separate length-scales, effectively down-weighting P3.",
+        "notes": "W6 analysis (notebook 06) showed Matérn 3/2 ARD achieves LOO R²=0.961 vs Matérn 5/2's 0.485 — switched to Matérn 3/2. The rougher kernel better captures the sharp bowl-shape confirmed by the W6 positive-Y breakthrough. Switch from UCB to EI ξ=0.01 to exploit the newly discovered positive-Y region tightly.",
     },
     5: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
@@ -319,8 +319,8 @@ FUNCTION_CONFIG = {
     },
     7: {
         "dims": 6, "bounds": [(0.0,1.0)]*6,
-        "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.05,
-        "ard": True,
+        "kernel": "rq", "acquisition": "ei", "beta": 1.0, "xi": 0.005,
+        "ard": False,
         "y_transform": "standardize",
         "description": "6D gradient boosting hyperparameters",
         "dim_labels": [
@@ -328,7 +328,7 @@ FUNCTION_CONFIG = {
             "Dim 3: max_depth [0–1]",    "Dim 4: subsample [0–1]",
             "Dim 5: max_features [0–1]", "Dim 6: regularisation [0–1]",
         ],
-        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. EI appropriate given structured landscape. Key: learning_rate (dim2) and n_estimators (dim1) are inversely related. ARD enabled: known that dim1/dim2 dominate while dim5 (max_features) is less critical.",
+        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. W6 analysis (notebook 06) showed Rational Quadratic kernel achieves LOO R²=0.868 vs Matérn 5/2's 0.493–0.722 — switched to RQ. RQ's multi-scale structure captures both broad flat regions and the narrow peak near [0.095, 0.365]. RQ over-estimates uncertainty (coverage=1.000 in LOO) so β reduced to 1.0 and ξ to 0.005 to stay exploitative. Function is confirmed deterministic — no need for exploration.",
         "informed_start": [0.333, 0.310, 0.250, 0.800, 0.800, 0.050],
     },
     8: {
@@ -487,6 +487,12 @@ def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
     ls = np.ones(dims) if (ard and dims > 1) else 1.0
     if kernel_type == "rbf":
         kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=(1e-2, 10.0))
+    elif kernel_type == "matern32":
+        kernel = C(1.0) * Matern(length_scale=ls, nu=1.5, length_scale_bounds=(1e-2, 10.0))
+    elif kernel_type == "rq":
+        # Rational Quadratic: mixture of RBF at all length-scales; no ARD in sklearn
+        from sklearn.gaussian_process.kernels import RationalQuadratic
+        kernel = C(1.0) * RationalQuadratic(length_scale=1.0, alpha=1.0)
     else:
         kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=(1e-2, 10.0))
     return GaussianProcessRegressor(kernel=kernel, alpha=alpha, normalize_y=normalize_y,

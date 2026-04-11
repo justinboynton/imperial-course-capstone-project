@@ -24,6 +24,10 @@
       [
         0.121472,
         0.51785
+      ],
+      [
+        0.08,
+        0.2
       ]
     ],
     "Y": [
@@ -32,9 +36,10 @@
       4.4063271146918005e-57,
       -1.6071929241641893e-27,
       -1.2783305673057546e-84,
-      -6.531143705182353e-70
+      -6.531143705182353e-70,
+      -3.100515262438316e-116
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -65,6 +70,12 @@
         "acq": "ei",
         "beta": 2.3,
         "xi": 0.08,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ei",
+        "beta": 2.0,
+        "xi": 0.05,
         "kernel": "matern"
       }
     ],
@@ -104,6 +115,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-10 17:21",
         "text": "# Bayesian Optimisation Analysis \u2014 Week 7\n\n## 1. Landscape Analysis\n\n| Observation | X\u2081 | X\u2082 | Y (magnitude) |\n|---|---|---|---|\n| Best initial | 0.731 | 0.733 | ~0 |\n| Week 1 | 0.999 | 0.986 | ~0 |\n| Week 2 | 0.856 | 0.278 | ~0 |\n| **Week 3** | **0.150** | **0.500** | **4.4e-57 \u2190 best** |\n| Week 4 | 0.775 | 0.763 | ~0 |\n| Week 5 | 0.080 | 0.480 | ~0 |\n| Week 6 | 0.122 | 0.518 | ~0 |\n\n**Key observations:**\n- The function is **extremely sparse** \u2014 nearly all values are effectively zero except Week 3\n- Week 3 at **(0.15, 0.50)** is the clear peak signal, ~57 orders of magnitude above zero\n- Week 5 **(0.08, 0.48)** and Week 6 **(0.122, 0.518)** flanking Week 3 both returned ~0 \u2014 this is **puzzling** and suggests either:\n  - A very sharp, narrow spike centred near (0.15, 0.50), OR\n  - Numerical precision issues where \"effectively zero\" values have noise dominating\n- The signal appears **extremely localised** \u2014 likely a sharp Gaussian-like peak or narrow ridge in the lower-left quadrant around x\u2081 \u2248 0.15, x\u2082 \u2248 0.50\n\n---\n\n## 2. Acquisition Strategy Review\n\n**What worked:**\n- UCB \u03b2=2.0 in Weeks 1-3 appropriately explored diverse regions and **found the signal**\n- arcsinh transform is essential here \u2014 without it, near-zero values would be indistinguishable\n\n**What went wrong (Weeks 5-6):**\n- After finding the signal at (0.15, 0.50), the algorithm moved to **(0.08, 0.48)** and **(0.122, 0.518)** \u2014 both returned ~0\n- This contradicts what a well-conditioned GP should do: it should place high mean/variance *near* the best observed point\n- **Likely cause:** The GP is struggling with the extreme value contrast \u2014 Y at Week 3 is ~57 orders of magnitude larger, even post-arcsinh transform the single spike is hard to model without tight lengthscale\n\n**Recommended changes:**\n- Switch to **EI** with aggressive exploitation \u2014 we know where the signal is\n- Use **shorter lengthscale** (force kernel to fit the spike tightly)\n- Reduce \u03be to near-zero to exploit the known region more aggressively\n\n---\n\n## 3. Next Query Recommendation\n\n> **Query: X = [0.15, 0.50] \u00b1 small perturbation \u2192 try (0.155, 0.505)**\n\n**Reasoning:**\n- The best point is at (0.15, 0.50); neighbouring points returned zero, suggesting the spike is **very narrow**\n- We should probe **just above** (0.15, 0.50) in small increments to locate the true maximum\n- Try a **2D grid** of tiny offsets: \u00b10.01\u20130.03 in each direction\n\n**Suggested candidate:** `X = [0.155, 0.505]`\n\nSecondary fallback: `X = [0.145, 0.495]` (symmetric exploration on the other side)\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|---|---|---|\n| **acq** | `EI` | Exploit known region; PI also viable |\n| **\u03b2** | `0.3` | Low \u2014 we want exploitation near the known peak, not broad exploration |\n| **\u03be** | `0.001` | Near-zero \u2014 maximise exploitation of the (0.15, 0.50) region |\n| **kernel** | `Mat\u00e9rn 5/2` | Keep, but **force short lengthscale** (e.g., initial ls=0.05, bounds [0.01, 0.2]) |\n\n> \u26a0\ufe0f **Critical:** The lengthscale is the main issue. With default lengthscale bounds (often 0.1\u20132.0), the GP will smooth over the spike. **Constrain lengthscale to [0.01, 0.15]** to allow the GP to fit the narrow peak.\n\n---\n\n## 5. Overall Strategy\n\n### Phase: **Exploit the (0.15, 0.50) region**\n\n```\nPriority 1: Fine-grid search around (0.15, 0.50) with step ~0.01-0.02\n  Candidates: (0.13, 0.50), (0.17, 0.50), (0.15, 0.48), (0.15, 0.52)\n  \nPriority 2: If no improvement, expand slightly to \u00b10.05 grid\n  \u2192 The true maximum may be at exactly (0.15, 0.50) or within 0.02\n\nPriority 3: Only return to global exploration if 3+ local queries all return ~0\n```\n\n**Why this is justified:**\n- With a sparse function this extreme, **finding any non-zero region is the hard part** \u2014 we've done that\n- Remaining budget should be 80%+ exploitation around the known signal\n- The extreme sparsity means global exploration is very unlikely to find a second peak better than 4.4e-57\n- **Force tight GP lengthscale** \u2014 this is the single most important technical fix\n\n**Red flag to watch:** If (0.155, 0.505) also returns ~0, the Week 3 result may have been an exact grid intersection with the function's support \u2014 in that case, query *exactly* (0.150, 0.500) again to confirm reproducibility."
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 22:28",
+        "text": "# Bayesian Optimisation Analysis \u2014 Week 7 Review\n\n## 1. Landscape Analysis\n\nThe data reveals a **highly structured, sparse function** with extreme value gradients:\n\n| Region | Best Y | Notes |\n|--------|--------|-------|\n| Near (0.15, 0.50) | **4.41e-57** \u2190 current best | Clear local signal |\n| Near (0.77, 0.76) | -1.61e-27 | Negative, but large magnitude |\n| Near (0.73, 0.73) | ~0 (initial best) | Seed of interest near (0.77, 0.76) |\n| Corners/edges | ~1e-85 to 1e-185 | Near-zero, uninformative |\n\n**Key observations:**\n- The function appears to have **at least two potentially interesting regions**: the (0.73\u20130.77, 0.73\u20130.76) cluster and the (0.12\u20130.15, 0.48\u20130.52) cluster\n- Values are astronomically small \u2014 this looks like a **Gaussian-shaped contamination plume** or radial decay field where the true peak may be orders of magnitude larger than anything sampled\n- The (0.15, 0.50) region gave the **least negative** (highest) value, suggesting the true maximum may be nearby but not yet centred\n- The extreme dynamic range (e-185 to e-57) strongly suggests a **peaked, narrow signal** \u2014 we are currently probing the tail of a distribution\n\n---\n\n## 2. Acquisition Strategy Review\n\n### What worked:\n- **Week 3 (0.15, 0.50)** was the breakthrough \u2014 UCB exploration found the best region\n- **arcsinh transform** is essential here given the 128-order-of-magnitude range; correct to keep enabled\n\n### What didn't work:\n- **Weeks 5\u20137** re-explored near (0.08\u20130.12, 0.48\u20130.52) without improvement \u2014 the GP appears to be **over-weighting the (0.15, 0.50) local neighbourhood** without converging on the peak\n- **EI in Weeks 6\u20137** with \u03be=0.05\u20130.08 is too conservative \u2014 EI tends to exploit near the current best, which is pulling queries toward already-sampled tails\n- Week 4's (0.77, 0.76) gave a **negative value of large magnitude** \u2014 this region is a local minimum, not a maximum; the GP should have deprioritised it\n\n### Recommendation:\n> Switch back to **UCB with moderate \u03b2** to push toward the interior of the (0.15, 0.50) region more precisely, rather than circling its edges.\n\n---\n\n## 3. Next Query Recommendation\n\n### Target: **(0.17, 0.52)**\n\n**Reasoning:**\n- Current best is (0.15, 0.50) at 4.41e-57\n- Weeks 6 & 7 probed (0.12, 0.52) and (0.08, 0.48) \u2014 both worse, suggesting the peak is **east and slightly north** of (0.15, 0.50)\n- The gradient points toward higher x\u2081 values from 0.08\u21920.15 (signal increasing), so **moving to ~0.17\u20130.20** follows the gradient\n- Slight northward shift to 0.52 probes the orthogonal direction without straying far\n\n**Alternative if budget allows:** Also consider **(0.20, 0.50)** as a secondary probe to confirm the ridge direction.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommended Value | Justification |\n|-----------|------------------|---------------|\n| **acq** | UCB | Better than EI here \u2014 EI is over-exploiting tails |\n| **\u03b2** | **1.5** | Moderate \u2014 we have a signal region; reduce exploration but don't over-exploit |\n| **\u03be** | 0.05 | Standard; not relevant for UCB but keep consistent |\n| **kernel** | Mat\u00e9rn 5/2 | Correct \u2014 handles non-smooth peaks well |\n\n> **Rationale for \u03b2=1.5:** \u03b2=1.0 (Week 4) drifted to the wrong region. \u03b2=2.0 is too exploratory now that we have a confirmed signal. \u03b2=1.5 balances local refinement near (0.15\u20130.20, 0.50\u20130.52) with enough uncertainty bonus to avoid getting stuck.\n\n---\n\n## 5. Overall Strategy\n\n```\nPhase A (Now \u2014 next 2 queries): Gradient ascent near (0.15, 0.50)\n  \u2192 Query (0.17, 0.52), then (0.20, 0.50) or (0.18, 0.54)\n  \u2192 Follow the direction of increasing Y\n\nPhase B (Queries 3\u20134): Zoom in on identified peak\n  \u2192 Use \u03b2=1.0 + EI to exploit once peak neighbourhood confirmed\n  \u2192 Target \u00b10.02 around best point found\n\nPhase C (Final query): Fine-tune\n  \u2192 Use EI with \u03be=0.01 for pure exploitation at best region\n```\n\n**Critical warnings:**\n1. \u26a0\ufe0f **Do not return to (0.08\u20130.12, 0.48\u20130.52)** \u2014 those are confirmed sub-optimal\n2. \u26a0\ufe0f **Do not revisit (0.77, 0.76) cluster** \u2014 large negative values confirm it's a minimum\n3. \u2705 The signal peak likely lies in **x\u2081 \u2208 [0.15, 0.25], x\u2082 \u2208 [0.48, 0.55]** \u2014 concentrate remaining budget here"
       }
     ]
   },
@@ -132,6 +149,10 @@
       [
         0.698748,
         0.932433
+      ],
+      [
+        0.693943,
+        0.920699
       ]
     ],
     "Y": [
@@ -140,9 +161,10 @@
       0.4928613591049055,
       0.6484801564614657,
       0.5129730941620497,
-      0.7259834718084449
+      0.7259834718084449,
+      0.5845462060127884
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -172,6 +194,12 @@
       {
         "acq": "ucb",
         "beta": 1.2,
+        "xi": 0.1,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ucb",
+        "beta": 2.5,
         "xi": 0.1,
         "kernel": "matern"
       }
@@ -212,6 +240,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-10 17:31",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 2 (2D)\n\n## 1. Landscape Analysis\n\n| Region | Points | Y Values | Interpretation |\n|--------|--------|----------|----------------|\n| ~[0.70, 0.93] | Weeks 3,5,6 + Best Initial | 0.49\u20130.73 | **Clear peak ridge** |\n| ~[0.70, 0.96] | Week 4 | 0.648 | Shoulder of ridge, slightly off-peak |\n| ~[0.82, 0.96] | Week 2 | 0.053 | Rapid drop-off eastward |\n| ~[0.12, 0.88] | Week 1 | 0.026 | Low-value basin |\n\n**Key findings:**\n- A **narrow ridge runs approximately along x\u2081 \u2248 0.70, x\u2082 \u2208 [0.92, 0.95]** \u2014 this is the dominant feature\n- The function drops sharply in x\u2081 (moving east to ~0.82 collapses output), suggesting a **steep eastern wall**\n- x\u2082 appears to have a gentler optimum near **0.93\u20130.94** (Week 6 at 0.9324 beat Week 4 at 0.9614 and Week 5 at 0.9422)\n- **Noise \u03c3 \u2248 0.06** in the peak region means the true optimum could be meaningfully higher than observed\n\n---\n\n## 2. Acquisition Strategy Review\n\n**What worked:**\n- Dropping \u03b2 from 2.5 \u2192 1.2 (Week 6) was the right call \u2014 the region was identified, exploitation was appropriate, and it returned the best result\n- Matern kernel is well-suited to this rough, noisy landscape \u2713\n- The progressive x\u2082 refinement (0.906 \u2192 0.932) was effective\n\n**What to reconsider:**\n- Weeks 1\u20132 were wasted on poor regions (likely over-exploration with high \u03b2 on sparse data)\n- The x\u2081 dimension is now well-constrained (~0.70); x\u2082 still has some uncertainty in the narrow [0.928\u20130.940] window\n- **Risk:** With noise \u03c3\u22480.06, we may be slightly misreading the true peak location\n\n---\n\n## 3. Next Query Recommendation\n\n**Target: `X = [0.699, 0.936]`**\n\n**Reasoning:**\n- Week 6 (`x\u2082=0.9324`, Y=0.726) beat Week 5 (`x\u2082=0.9422`) and Week 4 (`x\u2082=0.9614`)\n- The gradient points toward **x\u2082 slightly above 0.932** \u2014 but the noise means we haven't pinned it precisely\n- A small nudge to **x\u2082 = 0.936** probes between the current best (0.9324) and Week 5 (0.9422)\n- Keep x\u2081 \u2248 0.699 \u2014 all evidence confirms this is the correct x\u2081 value\n- This is **pure exploitation** of the confirmed ridge with minimal positional risk\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommended | Justification |\n|-----------|-------------|---------------|\n| **acq** | UCB | Consistent, interpretable, working well |\n| **\u03b2** | **0.8** | We're in exploitation mode on a confirmed peak; lower \u03b2 reduces noise-chasing |\n| **\u03be** | 0.05 | Reduce from 0.1 \u2014 less improvement threshold needed when exploiting |\n| **kernel** | Matern | Keep \u2014 appropriate for this rough landscape |\n\n> **\u03b2 = 0.8** is justified because: the region is identified, the het-GP already accounts for local noise, and we want the acquisition to tightly exploit the posterior mean rather than variance inflated by noisy neighbours.\n\n---\n\n## 5. Overall Strategy\n\n```\nRemaining priority order:\n1. Exploit peak ridge tightly (x\u2081\u22480.699, x\u2082\u2208[0.930\u20130.940]) \u2014 2\u20133 queries\n2. One probe at x\u2081\u22480.695 to check if ridge extends slightly west\n3. Accept convergence if Y improvement < noise floor (\u22480.06)\n```\n\n**Key principles going forward:**\n- **Do not move x\u2081 away from 0.699** \u2014 evidence strongly converges here\n- **Fine-grid x\u2082 search** in [0.930, 0.940] with \u03b2 \u2264 1.0 (pure exploitation)\n- The true maximum is likely **Y \u2208 [0.75, 0.85]** after noise averaging \u2014 achievable with 2\u20133 more targeted queries\n- If a query returns < 0.60, treat as noise artifact and don't follow it away from the ridge"
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 22:45",
+        "text": "# Bayesian Optimisation Analysis \u2014 Function 2 (Week 8)\n\n## 1. Landscape Analysis\n\nThe data reveals a **clear peak region around [0.70, 0.93]** with strong evidence of a narrow ridge structure:\n\n| Region | X\u2081 | X\u2082 | Y |\n|--------|-----|-----|---|\n| Peak candidate | 0.6987 | 0.9324 | **0.726** |\n| Near-peak | 0.6999 | 0.9614 | 0.648 |\n| Near-peak | 0.6935 | 0.9058 | 0.493 |\n| Near-peak | 0.6977 | 0.9422 | 0.513 |\n| Off-peak | 0.8154 | 0.9620 | 0.053 |\n| Off-peak | 0.1159 | 0.8841 | 0.026 |\n\n**Key observations:**\n- The function drops sharply moving away from x\u2081 \u2248 0.70 (e.g., x\u2081=0.815 gives Y\u22480.05) \u2014 **x\u2081 sensitivity is very high**\n- x\u2082 variation in [0.90\u20130.97] shows moderate sensitivity with best Y at x\u2082 \u2248 0.932\n- The ridge appears **narrow in x\u2081** (~\u00b10.02) and **broader in x\u2082** (~\u00b10.03)\n- Noise \u03c3\u22480.06 near the peak means the true maximum could be meaningfully higher than 0.726\n\n---\n\n## 2. Acquisition Strategy Review\n\n**UCB with \u03b2=1.2\u20132.5 and Mat\u00e9rn kernel has been appropriate** given:\n- \u2705 Mat\u00e9rn handles the rough/noisy surface well\n- \u2705 Lower \u03b2 (1.2) at Week 6 correctly exploited the promising region and found the best point\n- \u26a0\ufe0f \u03b2=2.5 in Weeks 2, 5, 7 kept pushing nearby but sub-optimal points \u2014 over-exploring within an already-identified cluster\n- \u26a0\ufe0f The het-GP noise model is correctly suppressing noise-chasing, but the acquisition is still circling too tightly\n\n**Recommendation:** Shift to **EI (Expected Improvement)** with the current best as the incumbent. EI naturally focuses on exceeding 0.726 and will be less tempted by high-variance noisy neighbours.\n\n---\n\n## 3. Next Query Recommendation\n\n**Target: [0.699, 0.928]**\n\n**Reasoning:**\n- The current best (0.726) sits at [0.6987, 0.9324]\n- The GP mean likely peaks very close to this point; we haven't sampled the **local neighbourhood precisely enough** along x\u2082\n- x\u2082 \u2248 0.928 sits between the best point (0.9324) and the initial best (0.9266) \u2014 a small but meaningful step toward the apparent x\u2082 optimum\n- Keep x\u2081 fixed near 0.699 \u2014 deviating risks falling off the narrow ridge\n\n**Alternative if exploration is preferred:** [0.695, 0.940] \u2014 slightly off-ridge to better constrain the GP posterior shape.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommended Value | Justification |\n|-----------|------------------|---------------|\n| **Acquisition** | **EI** | Switch from UCB; EI targets Y > 0.726 directly, reducing noise-chasing |\n| **\u03be** | **0.02** | Lower \u03be = less optimistic; we're exploiting now, not exploring |\n| **\u03b2** | N/A for EI | (If staying with UCB: \u03b2=1.0 \u2014 near-pure exploitation) |\n| **Kernel** | **Mat\u00e9rn** | Keep \u2014 appropriate for this rough landscape |\n\n---\n\n## 5. Overall Strategy\n\n**Phase: Precision Exploitation**\n\nGiven the narrow ridge is identified and noise is \u03c3\u22480.06:\n\n1. **Focus remaining queries tightly around [0.698\u20130.702, 0.925\u20130.940]** \u2014 the true optimum is almost certainly here\n2. **Use EI with \u03be=0.02** to target improvements over 0.726 without wasting queries on distant regions\n3. **Consider a repeat at [0.6987, 0.9324]** \u2014 with noise this high, averaging over repeated samples at the best point could reveal whether 0.726 is a noise spike or robust peak\n4. **Avoid \u03b2>1.5 UCB** \u2014 high \u03b2 will keep exploring the broader [0.70, 0.93] neighbourhood where you already have good coverage\n5. **Do not stray x\u2081 beyond [0.68, 0.72]** \u2014 the ridge is sharp and the function collapses rapidly outside this band\n\n> **Priority:** One more precise exploitation query at ~[0.699, 0.928], then consider a confirmation repeat at the current best to verify robustness of 0.726."
       }
     ]
   },
@@ -246,6 +280,11 @@
         0.446251,
         0.495959,
         0.466347
+      ],
+      [
+        0.430646,
+        0.422119,
+        0.508132
       ]
     ],
     "Y": [
@@ -254,9 +293,10 @@
       -0.12266503438904776,
       -0.06396740720224163,
       -0.008967458518951083,
-      -0.012780537613464532
+      -0.012780537613464532,
+      -0.014341802694520728
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -285,6 +325,12 @@
       },
       {
         "acq": "pi",
+        "beta": 1.96,
+        "xi": 0.02,
+        "kernel": "matern"
+      },
+      {
+        "acq": "mean",
         "beta": 1.96,
         "xi": 0.02,
         "kernel": "matern"
@@ -326,6 +372,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-10 17:32",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 3 (Drug Compounds)\n\n## 1. Landscape Analysis\n\n| Observation | Key Pattern |\n|-------------|-------------|\n| Best point: `[0.439, 0.461, 0.503]` Y=-0.009 | **Central region** of A, B, C |\n| 2nd best: `[0.446, 0.339, 0.486]` Y=-0.018 | Similar A, lower B |\n| Week 6: `[0.446, 0.496, 0.466]` Y=-0.013 | Similar A, slightly higher B |\n| Poor results: Week 3 `[0.559, 0.030, 0.554]` | **Very low B performs badly** |\n\n**Key insights:**\n- The function appears to peak near **A\u22480.44, B\u22480.46, C\u22480.50** \u2014 a fairly tight ridge\n- **Compound A** is consistently good in range [0.44\u20130.49]; moving to extremes (0.98) hurts\n- **Compound B** shows strong sensitivity \u2014 very low values (~0.03) are terrible; moderate values (0.35\u20130.50) are best\n- **Compound C** appears less sensitive; range [0.47\u20130.55] seems acceptable\n- The landscape has a **narrow ridge** rather than a broad plateau \u2014 small moves matter\n\n---\n\n## 2. Acquisition Strategy Review\n\n### What worked:\n- **EI with Matern** was appropriate for this physical process \u2705\n- \u03be=0.02 is reasonable for exploitation near a known good region \u2705\n- The switch to PI in Week 6 was reasonable but yielded a slightly worse result \u2014 EI is preferable here\n\n### Issues:\n- **\u03be=0.05 in Week 4** pushed exploration too far (\u2192 [0.98, 0.40, 0.61]) \u2014 not useful at this stage\n- **Week 3** went to extreme B=0.03 \u2014 likely a spurious EI spike in an unsampled region\n- We've been **circling the same region** for 3 weeks with marginal gains \u2014 suggests the GP is well-calibrated but we're near a local/global optimum\n\n---\n\n## 3. Next Query Recommendation\n\nWe're very close to a peak. The best point is `[0.439, 0.461, 0.503]`. Recommend a **focused exploitation** move with slight perturbation toward higher B (Week 6 suggests B\u22480.50 may be slightly better):\n\n### **Recommended point: `[0.430, 0.510, 0.490]`**\n\n**Rationale:**\n- A slightly decreased (toward the initial best A=0.493)\n- B nudged slightly higher toward ~0.51 \u2014 gradient appears positive moving B: 0.339\u21920.461\n- C slightly reduced to ~0.49 \u2014 exploring the slight downslope in C\n- Stays within the confirmed high-performing region\n- Small step avoids wasting a query on unexplored wasteland\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|-----------|---------------|---------------|\n| **Acquisition** | **EI** | Better than PI for fine exploitation near optimum |\n| **\u03be** | **0.005** | We're near the peak \u2014 reduce exploration, increase precision exploitation |\n| **\u03b2** | **1.96** | Standard; not using UCB so \u03b2 is secondary |\n| **Kernel** | **Matern 5/2** | Confirmed appropriate; keep consistent |\n\n> **Lower \u03be=0.005** is the key change \u2014 with 6 portal queries behind us, we want the GP to exploit the narrow ridge tightly rather than jumping away.\n\n---\n\n## 5. Overall Strategy\n\n```\nPhase: FINE EXPLOITATION \u2014 we are near the global optimum\n```\n\n**Remaining query plan:**\n\n1. **Weeks 7\u20138:** Tight grid search around `[0.43\u20130.46, 0.46\u20130.52, 0.48\u20130.52]` with \u03be=0.005\n2. **Week 9:** If gains plateau, try **one speculative move** \u2014 test `[0.50, 0.55, 0.50]` in case the ridge extends toward higher B\n3. **Week 10:** Final exploitation at confirmed best\n\n**Critical constraint:** Avoid B<0.20 and A>0.70 \u2014 the data firmly shows these are low-output regions. Don't let the GP waste queries there.\n\n**Watch for:** Y > -0.005 would suggest we're on the true peak. If Week 7 returns Y > -0.007, do a final micro-exploitation step. If it returns worse, the current best `[0.439, 0.461, 0.503]` may already be very close to optimal."
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 22:49",
+        "text": "# Bayesian Optimisation Analysis \u2014 Function 3 (Drug Compounds)\n\n## 1. Landscape Analysis\n\n| Observation | Key Pattern |\n|-------------|-------------|\n| Best point: `[0.4387, 0.4613, 0.5028]` \u2192 Y=-0.0090 | Centroid-ish region performing well |\n| Week 6: `[0.4463, 0.496, 0.4663]` \u2192 Y=-0.0128 | Nearby but slightly worse |\n| Week 7: `[0.4306, 0.4221, 0.5081]` \u2192 Y=-0.0143 | Also nearby, worse again |\n| Week 3: `[0.5588, 0.0303, 0.5542]` \u2192 Y=-0.1227 | Very low B \u2192 bad |\n| Week 4: `[0.9835, 0.3995, 0.6087]` \u2192 Y=-0.0640 | High A \u2192 bad |\n\n**Key insights:**\n- A **narrow ridge** appears to exist near **A\u22480.43\u20130.48, B\u22480.45\u20130.50, C\u22480.49\u20130.51**\n- Compound B is particularly sensitive \u2014 low values (B<0.10) are catastrophic; optimal appears ~0.45\u20130.50\n- Compound A performs poorly at extremes (near 0 or 1); sweet spot around 0.44\u20130.49\n- Compound C appears less sensitive but ~0.49\u20130.51 seems optimal\n- The landscape is **peaked and relatively narrow** \u2014 small deviations degrade performance significantly\n- Recent weeks (6, 7) tried to exploit but actually moved slightly away from optimum, suggesting the true peak hasn't been found yet\n\n---\n\n## 2. Acquisition Strategy Review\n\n### What worked:\n- **EI with \u03be=0.02** (Week 5) found the current best \u2014 appropriate balance of exploration/exploitation\n- **Matern kernel** correct for physical processes with possible discontinuities\n\n### What didn't work:\n- **Week 7 MEAN acquisition** was a mistake \u2014 pure exploitation ignores uncertainty and won't escape local optima; it produced a worse result\n- **Week 6 PI** is more conservative than EI and contributed less \u2014 PI overshoots exploitation without EI's expected improvement weighting\n- Weeks 6 & 7 appear to have been **micro-exploiting** too aggressively around the best point without systematic search \u2014 they converged prematurely\n\n### Recommendation:\nSwitch back to **EI** but with a **slightly higher \u03be** to encourage broader search in the neighbourhood without fully exploiting the narrow ridge.\n\n---\n\n## 3. Next Query Recommendation\n\nGiven the ridge centred near `[0.44, 0.46, 0.50]`, the model hasn't adequately explored:\n- **Slightly higher B** (0.52\u20130.55) \u2014 B may have an asymmetric optimum above 0.46\n- **C slightly higher** (~0.53) \u2014 weakly explored\n\n### Recommended next point:\n```\nX = [0.460, 0.520, 0.510]\n```\n**Rationale:**\n- Keeps A in the known good zone (~0.46)\n- Pushes B slightly higher than current best \u2014 the gradient from Week 2\u21925 suggests B optimum may be above 0.46\n- C nudged slightly toward 0.51 based on Week 5 success\n- Avoids over-exploiting the exact best point (would likely return similar Y)\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|-----------|---------------|---------------|\n| **Acquisition** | `EI` | Best proven performer; balances local/global |\n| **\u03be (exploration)** | `0.05` | Slightly elevated to prevent premature convergence around the ridge; encourages marginal exploration |\n| **\u03b2** | `1.96` | Standard; appropriate for moderate uncertainty |\n| **Kernel** | `Matern` | Retain \u2014 physically appropriate |\n\n---\n\n## 5. Overall Strategy\n\n### Remaining queries roadmap:\n\n```\nPhase 1 (Next 2 weeks): Systematic ridge mapping\n  - Vary B: 0.50 \u2192 0.55 while holding A\u22480.46, C\u22480.51\n  - Goal: Find B optimum precisely\n\nPhase 2 (2 weeks): A-dimension refinement  \n  - Test A=0.48\u20130.50 with best B/C found\n  - The initial best X had A=0.493 \u2014 converging here may be meaningful\n\nPhase 3 (Final weeks): Fine exploitation\n  - Switch to \u03be=0.01, EI for tight exploitation once ridge is mapped\n  - Consider UCB with low \u03b2=0.5 for final convergence\n```\n\n### Key cautions:\n- \u26a0\ufe0f **Avoid MEAN/PI acquisitions** \u2014 EI is strictly better here\n- \u26a0\ufe0f **Don't over-exploit the current best** \u2014 the ridge is narrow; slightly off-centre points keep underperforming\n- \u2705 **B is the most informative dimension** \u2014 prioritise its systematic exploration\n- \u2705 The function appears to have a **single dominant peak** \u2014 no evidence of multimodality; focused local search is justified"
       }
     ]
   },
@@ -366,6 +418,12 @@
         0.41786,
         0.363367,
         0.377276
+      ],
+      [
+        0.441966,
+        0.427206,
+        0.363081,
+        0.37778
       ]
     ],
     "Y": [
@@ -374,9 +432,10 @@
       -1.5683107330720172,
       -2.3701769269491098,
       -1.8973753079525788,
-      0.136162922131025
+      0.136162922131025,
+      0.32975283973016944
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -405,6 +464,12 @@
       },
       {
         "acq": "ucb",
+        "beta": 2.0,
+        "xi": 0.05,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ei",
         "beta": 2.0,
         "xi": 0.05,
         "kernel": "matern"
@@ -446,6 +511,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-11 09:00",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 4 (4D Warehouse)\n\n## 1. Landscape Analysis\n\n### Key Observations\n\n| Observation | Y Value | Notable |\n|------------|---------|---------|\n| Week 2 | **-1.1765** | Best discovered |\n| Week 6 | **+0.1362** | Current best \u2014 crossed zero! |\n| Week 3 | -1.568 | Near Week 2 |\n| Week 5 | -1.897 | Slight P3 decrease hurts |\n| Week 4 | -2.370 | Higher P3 hurts |\n\n### Landscape Patterns\n\n- **Clear ridge emerging** around P1\u22480.44\u20130.46, P2\u22480.40\u20130.42, P4\u22480.37\u20130.42 \u2014 the last 4 submissions cluster tightly here and steadily improve\n- **P3 is weakly correlated** (r=\u22120.16) but empirically lower P3 helps: W2 (P3=0.311) > W6 (P3=0.363) > W3 (P3=0.385) > W4 (P3=0.499)\n- **P4 sweet spot** appears near 0.37\u20130.41 (W6=0.377 was best)\n- The jump from \u221217 baseline to +0.136 suggests we found a **distinct high-value basin** \u2014 not just gradual improvement\n- **Dynamic drift warning**: initial best (Y\u2248\u22124) at similar P1/P2 but different P3/P4 suggests P3/P4 matter more than initially indicated\n\n---\n\n## 2. Acquisition Strategy Review\n\n### What Worked\n- \u2705 **UCB with \u03b2=2.0 + Mat\u00e9rn kernel** was appropriate \u2014 exploratory enough to escape the \u221217 basin\n- \u2705 **ARD-enabled Mat\u00e9rn** correctly learns to down-weight P3, focusing search on P1/P2/P4\n- \u2705 Staying near the discovered ridge (exploitation) while slightly varying P3 (exploration) was productive\n\n### What to Change\n- \u26a0\ufe0f **\u03b2=2.0 may now be slightly too exploratory** \u2014 we're in a promising basin; modest exploitation is warranted\n- \u26a0\ufe0f **P3 search range should be explicitly reduced** \u2014 queries keep varying P3 broadly; constrain to [0.25\u20130.38]\n- \u26a0\ufe0f Consider **EI (\u03be=0.01)** to tightly exploit around the current best (+0.136), pushing for further gains in the known basin\n\n---\n\n## 3. Next Query Recommendation\n\n### Recommended Point\n```\nP1 = 0.455\nP2 = 0.425\nP3 = 0.310\nP4 = 0.365\n```\n\n### Reasoning\n- **P1**: Stay in [0.44\u20130.46] \u2014 consistent across best results\n- **P2**: Nudge slightly higher than W6 (0.418\u21920.425) \u2014 W2's best result had P2=0.413; slight increase worth testing\n- **P3**: Push to minimum of productive range (0.310, matching W2's best P3) \u2014 lower P3 consistently correlates with better Y\n- **P4**: Slightly below W6 (0.377\u21920.365) \u2014 test if P4 decrease continues the positive trend seen W4\u2192W5\u2192W6\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|-----------|---------------|---------------|\n| **Acquisition** | **EI** | We have a clear best point; EI naturally focuses on exceeding it |\n| **\u03be** | **0.01** | Low improvement threshold \u2014 squeeze gains from known basin; avoid over-exploration |\n| **\u03b2** | **1.5** (backup if UCB) | Slight reduction from 2.0 \u2014 we're exploiting more now |\n| **Kernel** | **Mat\u00e9rn 5/2 + ARD** | Keep \u2014 working well, learns P3 down-weighting automatically |\n\n**Primary recommendation: `acq=EI, \u03be=0.01, kernel=matern`**\n\n---\n\n## 5. Overall Strategy\n\n### Phase Transition: Exploit the Basin\n\n```\nCurrent phase: Found good basin (Y > 0) \u2192 Switch to focused exploitation\n```\n\n### Recommended Roadmap\n\n1. **Next 2 weeks**: Tight exploitation around [0.445\u20130.465, 0.415\u20130.430, 0.300\u20130.330, 0.355\u20130.380] using EI (\u03be=0.01)\n2. **Week 9**: If improvement stalls, one exploratory probe \u2014 vary P4 more aggressively (try P4\u22480.25 or 0.50) to test P4 sensitivity\n3. **Week 10+**: Re-evaluate if dynamic drift has shifted the optimum; recheck initial best region with updated model\n\n### Key Principles\n- \ud83c\udfaf **P3 should stay low** (0.28\u20130.33) \u2014 consistently the best values have low P3 despite low correlation claim\n- \ud83c\udfaf **Don't abandon the cluster** \u2014 the ridge around P1\u22480.45 is real; don't scatter queries widely\n- \u26a1 **Watch for drift** \u2014 if a re-query of W6's exact point returns a different Y, the dynamic environment is active and recency-weighting observations becomes critical"
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 22:53",
+        "text": "# Bayesian Optimisation Analysis \u2014 Week 8\n\n## 1. Landscape Analysis\n\nThe data reveals a **sharp, narrow basin of positive values** centered around:\n- Param 1: ~0.44\u20130.46\n- Param 2: ~0.41\u20130.43\n- Param 3: ~0.33\u20130.40\n- Param 4: ~0.37\u20130.40\n\n**Key observations:**\n- The function drops steeply outside this region (initial Y range down to -32.6, Week 1 far-field point = -21.3)\n- W6 and W7 both achieved positive Y, confirming a genuine local maximum exists here\n- W7 slightly shifted Param 1 down (0.4491\u21920.442) and Param 2 up (0.4179\u21920.4272), yielding the best result (+0.330)\n- Param 3 appears sensitive: W2's 0.311 gave -1.18, W3's 0.385 gave -1.57, W6's 0.363 gave +0.136 \u2014 the sweet spot seems near **0.36**\n- Param 4 sensitivity: W7's 0.3778 beat W6's 0.3773 marginally \u2014 likely near **0.375\u20130.380**\n\nThe function has a **narrow ridge** structure, not a broad plateau.\n\n---\n\n## 2. Acquisition Strategy Review\n\n| Week | Decision | Assessment |\n|------|----------|------------|\n| W2\u2013W5 | UCB \u03b2=2.0, Mat\u00e9rn 5/2 | Reasonable exploration but kernel was wrong (R\u00b2=0.485) |\n| W4 | UCB \u03b2=1.2 | Too exploitative too early, missed ridge |\n| W6 | UCB \u03b2=2.0, Mat\u00e9rn 3/2 | Correct kernel switch; breakthrough achieved |\n| W7 | EI \u03be=0.05, Mat\u00e9rn 3/2 | Good; EI naturally exploits the peak region |\n\n**What to change:**\n- **EI is the right choice** \u2014 we're in exploitation mode around a known peak\n- **\u03be should be lowered to 0.01** (tighter exploitation); \u03be=0.05 adds unnecessary exploration noise around this narrow ridge\n- **Mat\u00e9rn 3/2 ARD is confirmed correct** \u2014 keep it\n\n---\n\n## 3. Next Query Recommendation\n\nBased on W7 being the best point `[0.442, 0.4272, 0.3631, 0.3778]`, the GP posterior should now be pointing slightly toward:\n\n**Recommended next query:**\n```\nX = [0.438, 0.430, 0.355, 0.373]\n```\n\n**Reasoning:**\n- **Param 1**: Nudge down slightly (0.442\u21920.438) \u2014 W7 trend suggests optimum may be slightly left\n- **Param 2**: Nudge up (0.4272\u21920.430) \u2014 consistent upward drift across W6\u2192W7 is promising\n- **Param 3**: Pull back slightly (0.3631\u21920.355) \u2014 W6 at 0.363 slightly outperformed W3 at 0.385; explore between W6 and W5\n- **Param 4**: Pull back slightly (0.3778\u21920.373) \u2014 small tightening to test the gradient direction\n\nThis is a **local gradient-following move** within the positive-Y basin, exploiting the EI posterior maximum.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Setting | Recommendation | Justification |\n|---------|---------------|---------------|\n| **Acquisition** | EI | Exploitation mode; positive region confirmed |\n| **\u03be** | **0.01** | Tight exploitation \u2014 we know where the peak is; don't waste query on exploration |\n| **\u03b2** | 1.0 (if UCB fallback) | Not needed with EI |\n| **Kernel** | **Mat\u00e9rn 3/2 ARD** | Confirmed by LOO R\u00b2=0.961; do not change |\n\n---\n\n## 5. Overall Strategy\n\n**Phase: Pure exploitation with micro-perturbation**\n\n1. **Stay in the basin** \u2014 all remaining queries should be within \u00b10.05 of W7's coordinates\n2. **Use EI \u03be=0.01** for the next 2\u20133 queries to climb the ridge tightly\n3. **Trust ARD length-scales** \u2014 the GP will identify which parameters matter most; Param 3 and Param 4 appear most sensitive based on variance in positive-Y outcomes\n4. **If Y stops improving**, consider a single exploratory query at the best point mirrored across Param 3 (try ~0.32) to rule out a second basin\n5. **Do not re-explore** the wide parameter space \u2014 the initial data and W1 confirm the rest of the landscape is deeply negative\n\n> **Priority:** Param 2 upward drift and Param 3 fine-tuning are the most likely levers to push Y above 0.5+."
       }
     ]
   },
@@ -486,6 +557,12 @@
         0.842587,
         0.957194,
         0.810902
+      ],
+      [
+        0.339784,
+        0.841854,
+        0.950375,
+        0.8757
       ]
     ],
     "Y": [
@@ -494,9 +571,10 @@
       1374.5238310030943,
       1124.9168085013514,
       1412.6278588791981,
-      1223.3388298083896
+      1223.3388298083896,
+      1482.412248071551
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -525,6 +603,12 @@
       },
       {
         "acq": "ei",
+        "beta": 1.5,
+        "xi": 0.01,
+        "kernel": "rbf"
+      },
+      {
+        "acq": "mean",
         "beta": 1.5,
         "xi": 0.01,
         "kernel": "rbf"
@@ -566,6 +650,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-11 09:03",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 5 (4D Chemical Yield)\n\n## 1. Landscape Analysis\n\nThe data reveals a **clear unimodal ridge** centred around:\n- **Chemical 1:** ~0.30\u20130.36 (lower-middle range)\n- **Chemical 2:** ~0.83\u20130.86 (high)\n- **Chemical 3:** ~0.92\u20130.96 (very high)\n- **Chemical 4:** ~0.87\u20130.88 (high)\n\n| Observation | C1 | C2 | C3 | C4 | Y |\n|---|---|---|---|---|---|\n| Best initial | 0.224 | 0.846 | 0.879 | 0.879 | 1088.9 |\n| Week 2 | 0.284 | 0.835 | 0.910 | 0.866 | 1138.9 |\n| Week 3 | 0.362 | 0.837 | 0.939 | 0.872 | 1374.5 |\n| **Week 5** | **0.339** | **0.838** | **0.946** | **0.872** | **1412.6** |\n| Week 6 | 0.314 | 0.843 | 0.957 | 0.811 | 1223.3 |\n\n**Key insight:** Week 6 dropped significantly (1223 vs 1412) despite C3 increasing further \u2014 the culprit is **C4 dropping to 0.811**. This confirms C4 \u2248 0.87 is critical. C3 may be near its optimum around 0.945\u20130.955; pushing beyond degrades performance. C1 appears relatively flat in [0.30\u20130.36].\n\n---\n\n## 2. Acquisition Strategy Review\n\n| Aspect | Assessment |\n|---|---|\n| **EI with \u03be=0.01** | \u2705 Correct \u2014 low \u03be exploits aggressively near current best |\n| **RBF kernel** | \u2705 Appropriate for smooth unimodal function |\n| **Week 4 MEAN** | \u26a0\ufe0f Pure exploitation too early, missed refinement opportunity |\n| **\u03b2=1.5** | \u274c Irrelevant for EI (\u03b2 is UCB parameter) \u2014 harmless but indicates config confusion |\n| **Week 6 C4 drift** | \u26a0\ufe0f EI allowed C4 to drop to 0.811 \u2014 GP uncertainty in C4 direction needs tightening |\n\n**Recommendation:** Switch to **pure MEAN (posterior mean maximisation)** \u2014 we are clearly in the exploitation phase with 6 weeks of data pointing to the basin. The function is confirmed unimodal.\n\n---\n\n## 3. Next Query Recommendation\n\n**Target point:**\n```\nC1 = 0.340, C2 = 0.840, C3 = 0.950, C4 = 0.875\n```\n\n**Reasoning:**\n- C1: Stay near 0.339 (current best), slight rounding\n- C2: Hold at ~0.840 \u2014 stable across all high-yield points\n- C3: 0.950 \u2014 Week 5 (0.946\u21921412) outperforms Week 6 (0.957\u21921223 with C4 drop); true C3 optimum likely ~0.948\u20130.952\n- **C4: Return to 0.875** \u2014 this is the key correction; Week 6 proved C4 must stay \u22480.87\n\nThis point is a **refined interpolation** between Week 5 (best) and the observed C3 sensitivity.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommended Value | Justification |\n|---|---|---|\n| **acq** | `MEAN` | Pure exploitation \u2014 unimodal, well-localised basin |\n| **\u03be** | `0.001` | Minimal exploration bonus; if EI used, stay maximally exploitative |\n| **\u03b2** | `0.1` | If UCB fallback needed; very low to suppress exploration |\n| **kernel** | `Mat\u00e9rn 5/2` | Slightly more robust than RBF for near-optimal fine-tuning |\n\n---\n\n## 5. Overall Strategy\n\n```\nWeeks 7\u201310: Pure exploitation around [0.34, 0.84, 0.95, 0.875]\n```\n\n1. **Immediate priority:** Fix C4 back to ~0.875 \u2014 Week 6 proves this is the most sensitive dimension right now\n2. **Fine-tune C3:** True optimum is likely 0.948\u00b10.005; sample 0.950 next, then 0.948 if needed\n3. **C1 search:** With C2/C3/C4 locked, try C1 \u2208 {0.32, 0.34, 0.36} to find the C1 ridge peak\n4. **Use MEAN acquisition** \u2014 GP has enough data to trust the posterior mean; exploration will only waste queries\n5. **Expected ceiling:** Given the trend (1089\u21921139\u21921374\u21921412), the true maximum may be **~1450\u20131550**; diminishing returns suggest we're within 10% of optimum\n\n> \u26a1 **Critical rule:** Do not let C4 drift below 0.86 again. Pin C2 \u2248 0.84, C4 \u2248 0.875 and only vary C1 and C3 in remaining queries."
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 22:59",
+        "text": "# Bayesian Optimisation Analysis \u2014 Function 5 (4D Chemical Yield)\n\n## 1. Landscape Analysis\n\nThe data reveals a **clear unimodal ridge** centred around:\n\n| Dimension | Approximate Optimum Range |\n|-----------|--------------------------|\n| Chemical 1 | ~0.33\u20130.36 |\n| Chemical 2 | ~0.838\u20130.845 |\n| Chemical 3 | ~0.945\u20130.960 |\n| Chemical 4 | ~0.872\u20130.876 |\n\n**Key observations:**\n- Progress has been monotonically improving: 1138 \u2192 1374 \u2192 1412 \u2192 1482\n- Chemical 2, 3, 4 are tightly constrained \u2014 small deviations (e.g., Week 6: Chem4=0.811, Chem3=0.957) cause notable drops (~260 points vs Week 7)\n- Chemical 1 shows the **widest tolerance** (0.28\u20130.42 explored) but best values cluster near **0.33\u20130.34**\n- Week 7 best point: `[0.3398, 0.8419, 0.9504, 0.8757]` \u2014 Chem3 may still have room to increase toward ~0.955\u20130.960\n\n---\n\n## 2. Acquisition Strategy Review\n\n| Aspect | Assessment |\n|--------|-----------|\n| **EI with \u03be=0.01** | \u2705 Correct for unimodal exploitation \u2014 low \u03be minimises exploration penalty |\n| **MEAN (Weeks 4, 7)** | \u2705 Pure exploitation appropriate; Week 7 produced the best result |\n| **RBF kernel** | \u2705 Appropriate for smooth unimodal landscapes |\n| **\u03b2=1.5** | \u26a0\ufe0f Irrelevant for EI/MEAN but harmless |\n| **Week 1 outlier** | \u274c Far from optimum \u2014 likely an exploratory/random initialisation |\n\n**Verdict:** Strategy has been sound. The shift toward MEAN (pure exploitation) in Week 7 paid off. **Continue with MEAN or UCB with low \u03b2.**\n\n---\n\n## 3. Next Query Recommendation\n\nBased on the trajectory, the optimum is very close to Week 7. The GP posterior mean should point **slightly higher on Chem3 and tighter on Chem4**:\n\n**Recommended point:**\n```\nX = [0.335, 0.842, 0.952, 0.876]\n```\n\n**Reasoning:**\n- Chem1: Nudge from 0.3398 \u2192 0.335 (centring on the 0.33\u20130.34 sweet spot)\n- Chem2: Hold near 0.842 (stable across best observations)\n- Chem3: Pull back slightly from 0.9504 toward ~0.952 (Week 5's 0.9457 scored 1412; Week 7's 0.9504 scored 1482 \u2014 the gradient is positive but flattening)\n- Chem4: Hold at 0.876 (consistent with top-2 results)\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|-----------|---------------|---------------|\n| **Acquisition** | `MEAN` | Pure exploitation \u2014 we are almost certainly in the basin of the true maximum |\n| **\u03be** | `0.001` | Minimal exploration noise; squeeze the posterior mean |\n| **\u03b2** | `0.5` | If using UCB as backup, low \u03b2 avoids unnecessary exploration |\n| **Kernel** | `RBF` | Keep consistent \u2014 refitting with Mat\u00e9rn 5/2 could be considered for sharper ridges |\n\n---\n\n## 5. Overall Strategy\n\n### Remaining weeks: **Pure exploitation with micro-perturbations**\n\n```\nPriority order:\n1. MEAN acquisition \u2014 query the GP posterior maximum directly\n2. Keep Chem2 \u2208 [0.840, 0.845], Chem4 \u2208 [0.874, 0.878] \u2014 these are tightly constrained\n3. Explore Chem3 \u2208 [0.948, 0.958] \u2014 still slight uncertainty here\n4. Explore Chem1 \u2208 [0.330, 0.345] \u2014 minor effect but worth fine-tuning\n```\n\n**Critical warning:** Avoid large moves. The function is sensitive to Chem4 (Week 6 deviation of ~0.065 cost ~260 units). Each remaining query should be a **local refinement**, not a new region search.\n\n> **Expected ceiling:** ~1500\u20131600 based on the current gradient flattening. The true optimum is within 1\u20132 queries of the current best."
       }
     ]
   },
@@ -612,6 +702,13 @@
         0.765726,
         0.787083,
         0.023498
+      ],
+      [
+        0.37658,
+        0.451658,
+        0.821369,
+        0.824426,
+        0.021514
       ]
     ],
     "Y": [
@@ -620,9 +717,10 @@
       -0.38366627334084097,
       -1.2938670691203138,
       -0.3412967915723752,
-      -0.29564914661430597
+      -0.29564914661430597,
+      -0.45228761102232223
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -641,6 +739,12 @@
         "acq": "ei",
         "beta": 1.5,
         "xi": 0.05,
+        "kernel": "matern"
+      },
+      {
+        "acq": "mean",
+        "beta": 1.96,
+        "xi": 0.02,
         "kernel": "matern"
       },
       {
@@ -692,6 +796,12 @@
         "obs_count": 6,
         "timestamp": "2026-04-11 09:12",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 6 (5D Cake Recipe)\n\n## 1. Landscape Analysis\n\n### Clear Trends from Data\n| Observation | Flour | Sugar | Eggs | Butter | Milk | Y |\n|---|---|---|---|---|---|---|\n| Best init | 0.728 | 0.155 | 0.733 | 0.694 | 0.056 | -0.714 |\n| Week 2 | 0.446 | 0.261 | 0.435 | 0.719 | 0.162 | -0.518 |\n| Week 3 | 0.380 | 0.481 | 0.560 | 0.725 | 0.170 | -0.384 |\n| Week 5 | 0.343 | 0.523 | 0.603 | 0.751 | 0.141 | -0.341 |\n| Week 6 | 0.409 | 0.411 | 0.766 | 0.787 | 0.024 | -0.296 |\n\n**Key patterns:**\n- **Butter (~0.72\u20130.79)**: Consistently high across best points \u2014 strong positive signal\n- **Milk (~0.02\u20130.17)**: Low values dominate the best scores \u2014 clear inverse relationship\n- **Eggs (~0.56\u20130.77)**: Rising trend correlates with improving scores \u2014 keep pushing higher\n- **Sugar (~0.41\u20130.52)**: Mid-range seems optimal; too low (0.15) or extreme hurts\n- **Flour (~0.34\u20130.41)**: Lower values (~0.35\u20130.41) appear consistently better\n- There is a **ridgeline** running through: low-flour, mid-sugar, high-eggs, high-butter, very-low-milk\n\n---\n\n## 2. Acquisition Strategy Review\n\n| Week | Strategy | Assessment |\n|---|---|---|\n| W1 | Unknown | Poor result (-1.83) \u2014 likely exploratory or poorly targeted |\n| W2\u2013W4 | EI (\u03be=0.02\u20130.05) | Reasonable but \u03be=0.05 in W4 caused over-exploration (bad point) |\n| W5\u2013W6 | **MEAN** | Excellent choice \u2014 switched to exploitation, clear gains |\n\n**What worked:** Switching to MEAN (pure exploitation) in W5/W6 produced the two best results, confirming the landscape is relatively smooth near the optimum.\n\n**What to change:** \n- Continue exploitation-focused strategy \u2014 we're on a promising ridge\n- MEAN or UCB with low \u03b2 is appropriate\n- Avoid high \u03be EI (leads to unnecessary exploration)\n\n---\n\n## 3. Next Query Recommendation\n\nFollowing the gradient from Week 6, continue the trajectory:\n- **Flour**: Slight decrease \u2192 `0.37` (trend is decreasing)\n- **Sugar**: Hold near `0.45` (slight dip back from 0.41, mid-range sweet spot)\n- **Eggs**: Continue increasing \u2192 `0.82` (strong positive trend)\n- **Butter**: Continue increasing \u2192 `0.82` (consistent positive signal)\n- **Milk**: Keep very low \u2192 `0.02` (near-zero consistently best)\n\n### \ud83c\udfaf Recommended Point:\n```\nX = [0.37, 0.45, 0.82, 0.82, 0.02]\n```\n\n**Reasoning:** This continues the established ridgeline trajectory. Each dimension moves in the direction that has consistently improved the score. The jump in Eggs and Butter is modest enough to stay on the smooth ridge rather than overshoot.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommendation | Justification |\n|---|---|---|\n| **acq** | `MEAN` or `UCB` | We're exploiting a known ridge; pure mean maximisation is appropriate |\n| **\u03b2** | `0.5` (if UCB) | Low \u03b2 = exploitation-dominant; we don't need exploration |\n| **\u03be** | `0.01` (if EI) | Minimal improvement threshold to stay close to current best |\n| **kernel** | `Matern` | Keep consistent \u2014 working well, captures the smooth ridgeline |\n\n**Primary recommendation: `acq=MEAN, kernel=matern`** \u2014 no \u03b2/\u03be needed, directly maximises GP posterior mean.\n\n---\n\n## 5. Overall Strategy\n\n```\nPhase: EXPLOITATION \u2014 we are on a clear ridge, ~6 weeks remaining\n```\n\n1. **Short-term (next 2\u20133 weeks):** Continue gradient-following along the ridge:\n   - Push Eggs toward ~0.85\u20130.90\n   - Push Butter toward ~0.83\u20130.88  \n   - Keep Milk \u2264 0.03\n   - Flour in [0.33\u20130.40], Sugar in [0.42\u20130.50]\n\n2. **Mid-term:** Once improvement stalls (<0.02 gain), try a small local perturbation grid around the best point to check for nearby local maxima.\n\n3. **Risk hedge (1 query):** Try one point with **Milk=0.0** exactly and Eggs/Butter pushed to ~0.87 to test if the boundary is the true optimum.\n\n4. **Avoid:** High exploration settings, extreme values in any dimension, or switching kernels \u2014 the current Matern model is well-calibrated to this landscape.\n\n> **Target:** Realistic expectation is Y \u2248 -0.15 to -0.10 within 3\u20134 more queries if the ridge continues linearly."
+      },
+      {
+        "week": 7,
+        "obs_count": 7,
+        "timestamp": "2026-04-11 23:06",
+        "text": "# Bayesian Optimisation Analysis \u2014 Function 6 (5D Cake Recipe)\n\n## 1. Landscape Analysis\n\n### Key Observations\n\n| Submission | Flour | Sugar | Eggs | Butter | Milk | Y |\n|---|---|---|---|---|---|---|\n| Best initial | 0.728 | 0.155 | 0.733 | 0.694 | 0.056 | -0.714 |\n| Week 2 | 0.446 | 0.261 | 0.435 | 0.719 | 0.162 | -0.518 |\n| Week 3 | 0.380 | 0.481 | 0.560 | 0.725 | 0.170 | -0.384 |\n| Week 5 | 0.343 | 0.523 | 0.603 | 0.751 | 0.141 | -0.341 |\n| **Week 6** | **0.409** | **0.411** | **0.766** | **0.787** | **0.024** | **-0.296** |\n| Week 7 | 0.377 | 0.452 | 0.821 | 0.824 | 0.022 | -0.453 |\n\n### Patterns\n\n- **Butter (dim 4)** is consistently high in top performers: ~0.72\u20130.83. Strong positive influence.\n- **Milk (dim 5)** is consistently **low** (~0.02\u20130.17) in top performers. Low milk = better.\n- **Eggs (dim 3)** shows a ridgeline: improvement from 0.44\u21920.56\u21920.60\u21920.77, but Week 7 at 0.82 *worsened*, suggesting **optimal Eggs \u2248 0.75\u20130.80**.\n- **Flour (dim 1)** is declining toward ~0.35\u20130.41, but not a dominant driver.\n- **Sugar (dim 2)** around 0.40\u20130.52 in the best region \u2014 moderate values preferred.\n- **Week 4 was a clear outlier** (high Butter=0.97 + low Eggs=0.29 \u2192 very poor), confirming Eggs matters.\n- The function appears **unimodal with a narrow ridge** around: Flour\u22480.38, Sugar\u22480.42, Eggs\u22480.77, Butter\u22480.79, Milk\u22480.02.\n\n---\n\n## 2. Acquisition Strategy Review\n\n### Assessment\n\n| Phase | Strategy | Verdict |\n|---|---|---|\n| Week 1 | Unknown settings | Poor result \u2014 likely too exploratory |\n| Weeks 2\u20133 | EI (\u03be=0.02) | \u2705 Good \u2014 found improvement quickly |\n| Week 4 | EI (\u03be=0.05) | \u274c Higher \u03be pushed exploration to a bad region (Eggs too low, Butter extreme) |\n| Weeks 5\u20137 | MEAN exploitation | \u26a0\ufe0f Reasonable near optimum, but MEAN ignores uncertainty \u2014 risky if GP is miscalibrated |\n\n### Issues\n- **MEAN acquisition** exploits purely based on posterior mean \u2014 no exploration bonus. Week 7 showed it can revisit suboptimal directions (Eggs pushed too high to 0.82).\n- **Matern kernel** is appropriate for this type of function (non-smooth, physical process).\n- Switching back to **EI with low \u03be** would better balance staying near the current best while refining.\n\n---\n\n## 3. Next Query Recommendation\n\n### Recommended Point\n\n```\nFlour  = 0.39\nSugar  = 0.42\nEggs   = 0.77\nButter = 0.80\nMilk   = 0.01\n```\n\n### Reasoning\n- **Eggs**: Week 6 (0.766, best result) outperformed Week 7 (0.821), so pull back slightly to ~0.77\n- **Butter**: Steadily improving; nudge to 0.80 (don't overshoot \u2014 Week 4 at 0.97 was catastrophic)\n- **Milk**: Consistently near-zero in top performers; push to minimum (0.01)\n- **Flour/Sugar**: Keep near Week 6 values, slight adjustment toward a balanced ratio\n- This is a **local refinement** around the current best, correcting the Week 7 overshoot on Eggs\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Recommended Value | Justification |\n|---|---|---|\n| **Acquisition** | `EI` | Better than MEAN \u2014 includes uncertainty, avoids re-querying near-identical points |\n| **\u03be (exploration)** | `0.01` | Very small: we're close to optimum, want exploitation with minimal drift |\n| **\u03b2** | `1.96` | Standard; relevant only for UCB \u2014 keep for consistency if switching |\n| **Kernel** | `Matern` | \u2705 Keep \u2014 appropriate for this problem |\n\n> **Why EI over MEAN?** MEAN led Week 7 to push Eggs too far (0.82 \u2192 worse). EI's improvement criterion will prefer points with genuine improvement probability over the current best of -0.296.\n\n---\n\n## 5. Overall Strategy\n\n### Remaining Priorities\n\n```\nPhase A (next 2 queries): Fine-grained local search\n  \u2192 Vary Eggs in [0.74, 0.80] and Butter in [0.78, 0.83]\n  \u2192 Pin Milk \u2248 0.01, Flour \u2248 0.38\u20130.42, Sugar \u2248 0.40\u20130.45\n  \u2192 Use EI, \u03be=0.01\n\nPhase B (if plateau): Brief exploration\n  \u2192 Test whether Sugar ~0.35 or Flour ~0.45 unlocks a better ridge\n  \u2192 Use EI, \u03be=0.05 for one query only\n\nPhase C (final): Exploit best found\n  \u2192 Use MEAN or EI \u03be=0.005 to polish the exact optimum\n```\n\n### Key Constraints Identified\n- \u2705 **Milk must stay low** (~0.01\u20130.05)\n- \u2705 **Butter in [0.78\u20130.83]** \u2014 do not exceed 0.87\n- \u2705 **Eggs \u2248 0.75\u20130.79** \u2014 the ridge appears narrow here\n- \u274c Avoid high Milk, extreme Butter, or low Eggs simultaneously\n\n> **Bottom line**: You're close to the optimum. The function has a narrow ridge in (Eggs, Butter) space with very low Milk. Precision refinement with EI (\u03be=0.01) targeting Eggs\u22480.77, Butter\u22480.80, Milk\u22480.01 is the highest-value next move."
       }
     ]
   },
@@ -744,6 +854,14 @@
         0.241669,
         0.262791,
         0.706741
+      ],
+      [
+        0.094908,
+        0.368144,
+        0.337375,
+        0.31839,
+        0.360302,
+        0.7219
       ]
     ],
     "Y": [
@@ -752,9 +870,10 @@
       1.9314881666250028,
       0.7445351480128302,
       2.356156779171078,
-      2.1892640075127767
+      2.1892640075127767,
+      2.3471500540420047
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -773,6 +892,12 @@
         "acq": "ei",
         "beta": 1.96,
         "xi": 0.1,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ei",
+        "beta": 1.96,
+        "xi": 0.05,
         "kernel": "matern"
       },
       {
@@ -888,6 +1013,16 @@
         0.142792,
         0.350137,
         0.943619
+      ],
+      [
+        0.076117,
+        0.13008,
+        0.011435,
+        0.024993,
+        0.955051,
+        0.157142,
+        0.320461,
+        0.86911
       ]
     ],
     "Y": [
@@ -896,9 +1031,10 @@
       7.317881353467,
       8.2840118007944,
       9.8000787813339,
-      9.1888262648619
+      9.1888262648619,
+      9.7748269317815
     ],
-    "week": 6,
+    "week": 7,
     "meta": [
       {},
       {
@@ -929,6 +1065,12 @@
         "acq": "ucb",
         "beta": 2.5,
         "xi": 0.1,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ucb",
+        "beta": 1.5,
+        "xi": 0.01,
         "kernel": "matern"
       }
     ],
@@ -974,6 +1116,12 @@
         "obs_count": 5,
         "timestamp": "2026-04-10 12:50",
         "text": "# Bayesian Optimisation Analysis \u2014 Function 8 (8D ML Hyperparameters)\n\n## 1. Landscape Analysis\n\n**Key patterns from all observations:**\n\n| Point | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | Y |\n|---|---|---|---|---|---|---|---|---|---|\n| Best initial | 0.056 | 0.066 | 0.023 | 0.039 | 0.404 | 0.801 | 0.488 | 0.893 | 9.5985 |\n| Week 1 | 0.242 | 0.754 | 0.171 | 0.087 | 0.351 | 0.974 | 0.195 | 0.656 | 9.2597 |\n| Week 2 | 0.212 | 0.204 | 0.040 | 0.040 | 0.973 | 0.067 | 0.219 | 0.061 | 9.7035 |\n| Week 3 | 0.062 | 0.956 | 0.001 | 0.908 | 0.527 | 0.002 | 0.943 | 0.228 | 7.3179 |\n| Week 4 | 0.091 | 0.141 | 0.251 | 0.059 | 0.817 | 0.769 | 0.130 | 0.089 | 8.2840 |\n| Week 5 \u2605 | 0.136 | 0.240 | 0.025 | 0.032 | 0.989 | 0.204 | 0.334 | 0.718 | **9.8001** |\n\n**Structural signals:**\n- **D1 small** (\u22640.22): All Y > 9.25 when D1 < 0.22 \u2014 strong signal, consistent with ARD short length-scale on D1\n- **D3 small** (\u22640.05): Top 3 results all have D3 < 0.05. Week 4 had D3=0.251 \u2192 dropped to 8.28. Confirms the r\u2248\u22120.65 negative correlation on D3\n- **D4 small** (\u22640.09): Top results cluster here; Week 3's D4=0.908 was catastrophic\n- **D5 high** (>0.9): Week 2 (0.973) and Week 5 (0.989) are the two best portal results \u2014 D5 appears **positively correlated** with Y\n- **D6 ambiguous**: Initial best had D6=0.80, Week 2 had D6=0.067 (both high Y) \u2014 suggests D6 has long length-scale (weak influence)\n- **D8 moderate-high**: Week 5 best had D8=0.718, initial best had D8=0.893 \u2014 mild positive signal\n\n**Working hypothesis:** The optimum lies in the region {D1\u22480.05\u20130.15, D3\u22480.00\u20130.04, D4\u22480.03\u20130.06, D5\u22480.95\u20131.0}, with D2, D6, D7, D8 being secondary but D8 moderately helpful when high.\n\n---\n\n## 2. Acquisition Strategy Review\n\n**Assessment:**\n- \u2705 **Matern kernel with ARD** \u2014 correct choice; captures non-isotropic structure and is well-suited to this type of ML hyperparameter surface\n- \u2705 **UCB \u03b2=2.5** \u2014 reasonable balance; has produced consistent improvements in Weeks 2, 4, 5\n- \u26a0\ufe0f **\u03b2=3.5 (Week 3)** \u2014 too exploratory; landed in a poor region (Y=7.32), wasted a query\n- \u26a0\ufe0f **Insufficient exploitation of known good region**: We have a strong signal around D1\u22480.1, D3\u22480.025, D4\u22480.03, D5\u22480.99. The GP should now be refining here.\n\n**Recommended change:** Shift toward **exploitation** \u2014 reduce \u03b2 or use **EI with \u03be=0.01** to focus on the promising sub-region. The landscape is becoming clearer; broad exploration risks more Week-3-style failures.\n\n---\n\n## 3. Next Query Recommendation\n\n**Target point:**\n\n```\nD1 = 0.08    (small, consistent with top results)\nD2 = 0.18    (low-moderate, Week 5 neighbourhood)\nD3 = 0.015   (very small \u2014 key negative driver)\nD4 = 0.035   (very small \u2014 consistent across top-3)\nD5 = 0.995   (push to ceiling \u2014 strong positive signal)\nD6 = 0.45    (mid-range \u2014 weak influence, explore modestly)\nD7 = 0.28    (Week 5 neighbourhood)\nD8 = 0.82    (higher than Week 5 \u2014 approaching initial best's D8)\n```\n\n**Rationale:**\n- Anchors D1, D3, D4 firmly in the identified \"safe\" low region\n- Pushes D5 to near-maximum (0.995) \u2014 the clearest positive signal\n- D8 increased to 0.82 to test whether the initial best's high D8 (0.893) adds value over Week 5's 0.718\n- D2 slightly lower than Week 5 to probe the D2 axis without straying far\n- This point is in a **data-sparse but high-expectation region** \u2014 the GP mean should be high here\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n| Setting | Recommendation | Justification |\n|---|---|---|\n| **Acquisition** | `EI` | Switch from UCB to EI to focus exploitation around current best (9.80) |\n| **\u03be (EI)** | `0.01` | Low exploration bonus \u2014 we want refinement, not breadth |\n| **Kernel** | `Matern-5/2 + ARD` | Keep \u2014 proven effective, respects D1/D3 sensitivity |\n| **\u03b2 (if UCB)** | `1.5` | If staying with UCB, reduce \u03b2 to exploit rather than explore |\n\n**If unsure between EI and UCB:** Use **UCB \u03b2=1.5\u20132.0**. The function is still uncertain in 8D but we've identified a promising basin \u2014 pure exploitation risk is lower now than at the start.\n\n---\n\n## 5. Overall Strategy\n\n### Phase: Focused Basin Refinement\n\nWe've identified a high-value basin. The remaining strategy should:\n\n**1. Exploit the identified structure:**\n- Keep D1 \u2208 [0.05, 0.15], D3 \u2208 [0.00, 0.04], D4 \u2208 [0.02, 0.07] in every remaining query\n- Vary D5 (try 1.0, 0.97, 0.95) and D8 (try 0.85, 0.92) systematically\n\n**2. Probe secondary dimensions carefully:**\n- Test D2 lower (\u22480.10\u20130.15) \u2014 could be another positive driver\n- D6 and D7 appear weak; don't waste queries exploring their extremes\n\n**3. Alternate EI/UCB-low-\u03b2:**\n- 2 exploitation queries (EI, \u03be=0.01) for every 1 exploration query (UCB \u03b2=2.0)\n- Avoid \u03b2 > 3.0 \u2014 Week 3 demonstrated the cost\n\n**4. Watch for diminishing returns:**\n- If two consecutive queries return Y < 9.7, consider one broader UCB query (\u03b2=2.5) to check if another basin exists\n\n**Expected ceiling:** Based on trajectory (9.60 \u2192 9.70 \u2192 9.80), the true optimum may be in the **9.9\u201310.2** range. Systematic refinement of D5 and D8 within the low-D1/D3/D4 basin is the most likely path to get there."
+      },
+      {
+        "week": 6,
+        "obs_count": 6,
+        "timestamp": "2026-04-11 15:11",
+        "text": "# Bayesian Optimisation Analysis \u2014 Function 8 (8D ML Hyperparameters)\n\n## 1. Landscape Analysis\n\n### Key Observations from All Data\n\n| Point | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | Y |\n|-------|----|----|----|----|----|----|----|----|---|\n| Best init | 0.056 | 0.066 | 0.023 | 0.039 | 0.404 | 0.801 | 0.488 | 0.893 | 9.599 |\n| Week 1 | 0.242 | 0.754 | 0.171 | 0.087 | 0.351 | 0.974 | 0.195 | 0.656 | 9.260 |\n| **Week 2** | 0.212 | 0.204 | 0.040 | 0.040 | 0.973 | 0.067 | 0.219 | 0.061 | 9.704 |\n| Week 3 | 0.062 | 0.956 | 0.001 | 0.908 | 0.527 | 0.002 | 0.943 | 0.228 | 7.318 |\n| Week 4 | 0.091 | 0.141 | 0.251 | 0.059 | 0.817 | 0.769 | 0.130 | 0.089 | 8.284 |\n| **Week 5** | 0.136 | 0.240 | 0.025 | 0.032 | 0.989 | 0.204 | 0.334 | 0.718 | **9.800** |\n| Week 6 | 0.471 | 0.644 | 0.032 | 0.418 | 0.918 | 0.143 | 0.350 | 0.944 | 9.189 |\n\n### Patterns\n\n- **D1 low (0.05\u20130.22)**: All top-4 points have D1 < 0.25. Confirmed negative correlation \u2014 **keep D1 small**.\n- **D3 very low (< 0.05)**: Top 3 points all have D3 \u2264 0.04. Week 4 had D3=0.251 \u2192 dropped to 8.28. **D3 is a critical suppressor; minimise it**.\n- **D4 low (< 0.05)**: Best points cluster at D4 < 0.05. Week 6 broke this (D4=0.418) \u2192 9.19. **Keep D4 small**.\n- **D5 high**: Best point has D5=0.989; init best has D5=0.404 but D6/D8 compensate. The 9.8 point had D5\u22481.0. **D5 should be high**.\n- **D6 ambiguous**: Init best: 0.801; Week 2 best: 0.067; Week 5 best: 0.204. Seems **D6 is not strongly constrained** \u2014 likely has long length-scale as noted.\n- **D7 low-moderate**: Best points: 0.488, 0.219, 0.334. Moderate mid-range. Avoid extremes.\n- **D8 variable**: Init=0.893, Week2=0.061, Week5=0.718. Unclear \u2014 probably long length-scale.\n- **Week 3 disaster** (Y=7.32): D2=0.956, D4=0.908, D7=0.943 \u2014 extreme values in multiple dimensions simultaneously \u2192 confirms sharp penalties at boundaries in D2, D4, D7.\n\n### Summary Ridge\n> **D1 \u2248 0.05\u20130.15, D3 \u2248 0.00\u20130.03, D4 \u2248 0.03\u20130.05, D5 \u2248 0.95\u20131.0** with moderate D2, D7 defines the high-value ridge. D6 and D8 are secondary.\n\n---\n\n## 2. Acquisition Strategy Review\n\n### Assessment\n\n| Aspect | Assessment |\n|--------|-----------|\n| UCB with \u03b2=2.5\u20133.5 | **Appropriate** \u2014 8D needs exploration but the \u03b2=3.5 in Week 3 went too far into unexplored territory |\n| Matern kernel | **Good choice** \u2014 handles non-smooth ML hyperparameter surfaces well |\n| ARD | **Critical** \u2014 without ARD, D1/D3 short-scale structure would be missed |\n| Week 3 (\u03b2=3.5) | **Too exploratory** \u2014 sent the point to extreme D2/D4/D7, wasted a query |\n| Week 6 (D4=0.418) | GP uncertainty overcame clear pattern \u2014 suggests \u03b2 slightly too high |\n\n### Recommended Changes\n- **Reduce \u03b2 to 1.5\u20132.0**: We now have strong evidence about D1, D3, D4. Exploitation near the ridge is warranted. Broad exploration is burning queries.\n- **Consider EI (\u03be=0.05)**: With 6+ portal queries and a clear current best of 9.80, EI with small \u03be focuses on beating the incumbent without wild exploration.\n- **Tighten bounds on D1, D3, D4** via constrained optimisation of acquisition if possible.\n\n---\n\n## 3. Next Query Recommendation\n\n### Target Point\n\nBased on the ridge analysis, the next query should **refine around the Week 5 best** while pushing D5 to maximum and tightening D3/D4 further:\n\n```\nD1 = 0.10    # Low, slightly above Week 5 to probe nearby\nD2 = 0.18    # Low-moderate, between Week 2 and Week 5\nD3 = 0.010   # Even lower than Week 5 (0.025) \u2014 D3 penalty is steep\nD4 = 0.025   # Tighter than Week 5 (0.032)\nD5 = 0.995   # Push to maximum \u2014 strong positive signal\nD6 = 0.15    # Near Week 5 value; low D6 seems fine\nD7 = 0.320   # Near Week 5 value\nD8 = 0.650   # Between init best (0.893) and Week 5 (0.718) \u2014 probe slightly lower\n```\n\n### Reasoning\n- D3 going from 0.04 (Week 2, 9.70) \u2192 0.025 (Week 5, 9.80) showed improvement. Pushing to 0.01 explores whether the function continues increasing.\n- D4 tightening mirrors D3 logic.\n- D5=0.995 consolidates the high-D5 signal.\n- D8 at 0.65 explores between two good values without committing to extremes.\n- Overall: **exploitation of the identified ridge with marginal exploration on D3/D4/D8**.\n\n---\n\n## 4. \u03b2 and \u03be Settings\n\n### Recommendation: **UCB with \u03b2 = 1.5**\n\n| Parameter | Value | Justification |\n|-----------|-------|---------------|\n| `acq` | `UCB` | Familiar, interpretable; stick with what's working |\n| `\u03b2` | **1.5** | Shift toward exploitation \u2014 ridge is identified, no need for wide exploration |\n| `\u03be` | 0.05 | Kept low (EI fallback); not primary driver for UCB |\n| `kernel` | `matern` + ARD | Non-negotiable \u2014 ARD is essential for D1/D3 length-scale differentiation |\n\n**Alternative**: Switch to `EI` with `\u03be=0.01` to aggressively target improvement over 9.80. This is defensible if you want to squeeze out the last improvement near the ridge.\n\n---\n\n## 5. Overall Strategy\n\n### Remaining Queries Framework\n\n```\nPhase A \u2014 Ridge Exploitation (next 2\u20133 queries):\n  Fix D1\u2208[0.05,0.15], D3\u2208[0.005,0.025], D4\u2208[0.02,0.04], D5\u2208[0.97,1.0]\n  Vary D2, D6, D7, D8 within [0.1,0.5] to find secondary optimum\n  Use \u03b2=1.5 UCB or EI \u03be=0.01\n\nPhase B \u2014 Boundary Push (1\u20132 queries):\n  Try D3\u21920.001, D4\u21920.01, D1\u21920.05 (near-zero boundaries)\n  D5\u21921.0 exactly \u2014 test if boundary clipping helps\n  Keep other dims near Week 5 values\n\nPhase C \u2014 Contingency Exploration (1 query):\n  If no improvement after Phase A/B, try D8\u21920.9+ \n  (init best had D8=0.893 with high score \u2014 test D8 interaction with new D5/D3)\n```\n\n### Key Principles\n1. **Don't repeat Week 3's mistake** \u2014 never push D2, D4, D7 to extremes simultaneously\n2. **D1 and D3 are your primary levers** \u2014 the ARD note confirms these dominate importance; small movements here matter most\n3. **Accept ~9.8 may be near-optimal** \u2014 the function may be plateauing; don't over-explore and waste remaining budget\n4. **Track marginal gains**: If Phase A yields < 9.85, shift to EI with very small \u03be to tighten exploitation"
       }
     ]
   }
