@@ -2,7 +2,7 @@
 
 Documents the surrogate model choices, acquisition settings, and learning outcomes for each of the eight black-box functions. Updated after each week's results are returned.
 
-**Current status:** Week 10 submissions complete. W9 results returned. Challenge concluded (10 of 10 queries submitted per function).
+**Current status:** Week 11 submissions complete (results pending). 2 weeks remaining.
 
 ---
 
@@ -17,6 +17,9 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | **ARD** | Enabled selectively (F4, F8) | Automatic Relevance Determination allows per-dimension lengthscales; useful for high-D functions once data accumulates |
 | **Y-transform** | `standardize` (F2–F8), `arcsinh` (F1) | Z-scores Y before GP fitting so acquisition functions operate in consistent units; prevents outliers or large Y ranges from distorting kernel hyperparameter optimisation. Applied from Week 4 onward. `normalize_y=False` set on the GP to avoid double-normalisation. |
 | **Heteroscedastic GP** | F2 only | Per-point noise estimated via LOO residuals + Gaussian kernel smoothing; prevents acquisition from chasing noise-driven gradients |
+| **Search bounds** | F3, F4, F5, F7, F8 | Candidates sampled from per-function confirmed basins rather than [0,1]^d; prevents acquisition from suggesting queries in known-bad regions |
+| **Dimension masking** | F8 (6D GP) | GP fitted on D1–D5, D7 only; D6/D8 identified as noise dimensions via model-free analysis. Candidates still span 8D but scored on 6D |
+| **LS cap** | F3, F8 | Length-scale upper bound reduced from 10.0 to 3.0; prevents runaway length-scales in data-sparse regimes |
 
 ### Acquisition function guide
 
@@ -56,7 +59,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.080, 0.200] | ≈−3.1×10⁻¹¹⁶ | EI β=2.0, Matérn | Lower-left — worst region yet |
 | 8 | [0.691, 0.707] | **1.64×10⁻⁷** | UCB β=1.5, Matérn | **Breakthrough** — +50 orders of magnitude |
 | 9 | [0.678, 0.759] | −1.30×10⁻¹⁴ | UCB β=0.5, Matérn | Negative; X₂=0.759 slightly outside band |
-| 10 | [0.702, 0.721] | pending | UCB β=0.5, RBF | RBF trial; tighter around W8 hotspot |
+| 10 | [0.702, 0.721] | 3.67×10⁻¹⁰ | UCB β=0.5, RBF | RBF trial — 3 orders worse than Matérn; kernel reverted |
+| 11 | [0.700, 0.715] | pending | UCB β=0.5, Matérn | Returned to Matérn; tight within hotspot band |
 
 ### All-time best
 
@@ -69,6 +73,7 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 - The initial data contained the signal: two points near [0.65, 0.68] and [0.73, 0.73] bracketed the hotspot — should have been recognised in W1
 - GP cannot fit this function due to 183-order dynamic range; model-free spatial statistics are the correct approach
 - W9 regression: X₂=0.759 exceeded the [0.68, 0.73] constraint band
+- W10 RBF kernel trial (3.67×10⁻¹⁰) was 3 orders of magnitude worse than Matérn (1.64×10⁻⁷) — the steep radial decay favours Matérn's finite differentiability
 
 ### Exploratory analysis
 
@@ -104,7 +109,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.694, 0.921] | 0.585 | UCB β=2.5, Matérn, het-GP | Regression — X₂ too low |
 | 8 | [0.699, 0.927] | 0.715 | UCB β=2.5, Matérn, het-GP | Near-best; confirms region |
 | 9 | [0.700, 0.932] | 0.548 | UCB β=2.5, Matérn, het-GP | Regression — noise |
-| 10 | [0.706, 0.934] | pending | UCB β=0.7, Matérn, het-GP | Near-pure exploitation |
+| 10 | [0.706, 0.934] | 0.564 | UCB β=0.7, Matérn, het-GP | Noise-dominated regression |
+| 11 | [0.700, 0.935] | pending | UCB β=0.5, Matérn, het-GP | β further reduced; tight near W6 peak |
 
 ### All-time best
 
@@ -112,10 +118,10 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 
 ### Key findings
 
-- Narrow peak at X₁ ≈ 0.70, X₂ ∈ [0.926, 0.932]; the function is stochastic — repeated queries at nearly identical inputs return different values
+- Narrow peak at X₁ ≈ 0.70, X₂ ∈ [0.926, 0.935]; the function is stochastic — repeated queries at nearly identical inputs return different values
 - Lower β consistently produces better results: W4 (β=1.5, Y=0.648), W6 (β=1.2, Y=0.726) vs W5/W7/W9 (β=2.5, Y=0.513/0.585/0.548)
 - Heteroscedastic GP correctly assigns higher noise to the peak region, preventing acquisition from chasing noise-driven gradients
-- W10 strategy: β=0.7 to maximise exploitation after three consecutive regressions with β=2.5
+- Last 6 queries (W5–W10) all within 0.01 of [0.70, 0.93] — only W6 found the peak. Irreducible stochasticity is the limiting factor, not surrogate quality
 
 ### Exploratory analysis
 
@@ -133,7 +139,9 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 |-----------|-------|-------|
 | Kernel | Matérn 5/2 | Physical interaction model — moderate smoothness appropriate |
 | Acquisition | EI (primary), PI (W6), Mean (W7) | Tested multiple strategies around the narrow W5 optimum |
-| ξ | 0.02 → 0.05 (W4) → 0.02 (W5–W9) → 0.012 (W10) | Gradually tightened as best region confirmed |
+| ξ | 0.02 → 0.05 (W4) → 0.02 (W5–W9) → 0.005 (W11) | Tightened as best region confirmed |
+| Search bounds | [0.35–0.60] × [0.36–0.56] × [0.43–0.55] | From W11; prevents GP from suggesting corners |
+| LS cap | ≤ 3.0 | From W11; prevents D1 length-scale from reaching 4.18 |
 | Y-transform | standardize | |
 
 ### Submission history
@@ -150,7 +158,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.431, 0.422, 0.508] | −0.014 | Mean, Matérn | Near-best; B too low |
 | 8 | [0.460, 0.518, 0.510] | −0.017 | EI ξ=0.02, Matérn | B drifting up — regression |
 | 9 | [0.606, 0.401, 0.510] | −0.010 | EI ξ=0.02, Matérn | A=0.606 exploration; near-best |
-| 10 | [0.987, 0.970, 0.950] | pending | EI ξ=0.012, Matérn | Upper corner exploration bet |
+| 10 | [0.987, 0.970, 0.950] | −0.237 | EI ξ=0.012, Matérn | Corner probe — 26× worse; confirms no second basin |
+| 11 | [0.511, 0.435, 0.484] | pending | EI ξ=0.005, Matérn | First bounded query; within confirmed basin |
 
 ### All-time best
 
@@ -159,8 +168,14 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 ### Key findings
 
 - Extremely narrow optimum: A ∈ [0.43, 0.46], B ∈ [0.42, 0.50], C ∈ [0.47, 0.52]
-- Five consecutive weeks (W6–W10) unable to beat the W5 result despite tight perturbations
-- W10 is a radical corner probe ([0.987, 0.970, 0.950]) — testing whether a second basin exists near the boundary
+- GP LOO R² < 0.20 for all kernels — surrogate is effectively useless (notebook 08)
+- GP D1 length-scale of 4.18 predicted argmax at [1.0, 0.96, 0.46] — the opposite corner from the actual optimum
+- W10 corner probe (−0.237 vs −0.009) empirically confirmed the GP was misleading
+- W11: search bounds + LS cap + reduced ξ now constrain GP within confirmed basin
+
+### Exploratory analysis
+
+- `analysis/08_function3_landscape_analysis.ipynb` — GP LOO R² diagnosis, length-scale pathology, radial decay, empirical gradients
 
 ---
 
@@ -192,7 +207,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.442, 0.427, 0.363, 0.378] | **+0.330** | EI ξ=0.05, Matérn ARD | 2nd consecutive improvement |
 | 8 | [0.438, 0.431, 0.355, 0.380] | **+0.367** | EI ξ=0.01, **Matérn 3/2** ARD | **All-time best** — 3rd consecutive |
 | 9 | [0.230, 0.457, 0.404, 0.463] | −3.207 | EI ξ=0.01, Matérn 3/2 ARD | P1=0.230 violated constraint |
-| 10 | [0.447, 0.484, 0.357, 0.321] | pending | EI ξ=0.002, Matérn 3/2 ARD | Return to basin; tighter ξ |
+| 10 | [0.447, 0.484, 0.357, 0.321] | −1.426 | EI ξ=0.002, Matérn 3/2 ARD | P2=0.484 still too high |
+| 11 | [0.415, 0.453, 0.371, 0.395] | pending | EI ξ=0.001, Matérn 3/2 ARD | Bounded; all 4 dims within basin |
 
 ### All-time best
 
@@ -203,7 +219,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 - "Moderate everything" optimum: all dims ∈ [0.35, 0.45] — consistent with regularisation theory
 - Matérn 3/2 kernel switch (notebook 06) directly enabled three consecutive improvements (W6–W8)
 - W6–W8 convergence: diminishing step sizes (+0.136, +0.330, +0.367) consistent with approaching a stationary point
-- W9 regression: P1=0.230 violated the [0.35, 0.45] constraint — confirmed the basin is unimodal in this region
+- W9 regression: P1=0.230 violated the [0.35, 0.45] constraint — confirmed the basin is unimodal
+- W10: P2=0.484 still outside confirmed [0.36, 0.45] — search bounds now enforce the basin from W11
 
 ### Exploratory analysis
 
@@ -238,15 +255,16 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.340, 0.842, 0.950, 0.876] | **1482.4** | Mean, RBF | New best (+36%) |
 | 8 | [0.351, 0.915, 0.958, 0.874] | **1963.7** | Mean, RBF | **D2 breakout** (+80%) |
 | 9 | [0.350, 0.923, 0.961, 0.902] | **2238.7** | Mean, RBF | **All-time best** (+106%) |
-| 10 | [0.332, 0.951, 0.985, 0.980] | pending | Mean, RBF | Continuing D2/D3/D4 push |
+| 10 | [0.332, 0.951, 0.985, 0.980] | **3448.2** | Mean, RBF | **6th consecutive best** (+217% total) |
+| 11 | [0.310, 0.982, 0.997, 0.995] | pending | Mean, RBF | Continuing D2–D4 push toward 1.0 |
 
 ### All-time best
 
-> 2238.73 — Week 9 — [0.350, 0.923, 0.961, 0.902]
+> 3448.17 — Week 10 — [0.332, 0.951, 0.985, 0.980]
 
 ### Key findings
 
-- Most successful function: 6 new all-time bests across 9 weeks, with the yield more than doubling the initial best
+- Most successful function: 6 new all-time bests (W5–W10), with the yield more than tripling the initial best (+217%)
 - C2 was under-constrained until W8 — holding it at 0.84 for four weeks missed the true peak (C2 > 0.90)
 - Consistent gradient: C2, C3, C4 all increasing toward 1.0; C1 ≈ 0.33–0.35 stable
 - Mean acquisition (pure exploitation) produced four consecutive bests (W7–W9)
@@ -262,9 +280,9 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Kernel | Matérn 5/2 → **Matérn 3/2** (W10 trial) | Testing rougher kernel for ingredient interactions |
+| Kernel | Matérn 5/2 (W10 Matérn 3/2 trial reverted) | Matérn 3/2 trial failed; reverted to default for W11 |
 | Acquisition | EI / Mean (alternating) | Mean for exploitation phases (W5–W6, W9); EI for recovery |
-| ξ | 0.02 → 0.008 (W10) | Tightened for precision exploitation |
+| ξ | 0.02 → 0.008 (W10) → 0.001 (W11) | Tightened; no search bounds needed — suggestions stay within basin naturally |
 | Y-transform | standardize | |
 
 ### Submission history
@@ -281,7 +299,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.377, 0.452, 0.821, 0.824, 0.022] | −0.452 | EI ξ=0.02, Matérn | Eggs too high |
 | 8 | [0.472, 0.407, 0.735, 0.782, 0.018] | **−0.246** | EI ξ=0.02, Matérn | **All-time best** (+66%) |
 | 9 | [0.482, 0.432, 0.767, 0.850, 0.010] | −0.485 | Mean, Matérn | Butter=0.850 too high |
-| 10 | [0.453, 0.402, 0.745, 0.556, 0.099] | pending | EI ξ=0.008, Matérn 3/2 | Butter reduced; kernel trial |
+| 10 | [0.453, 0.402, 0.745, 0.556, 0.099] | −0.389 | EI ξ=0.008, Matérn 3/2 | Butter=0.556 too low — regression |
+| 11 | [0.491, 0.395, 0.718, 0.770, 0.009] | pending | EI ξ=0.001, Matérn | Reverted to Matérn; Butter restored to ~0.77 |
 
 ### All-time best
 
@@ -294,6 +313,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 - Milk must remain very low (< 0.02 for best results, < 0.17 for acceptable)
 - Mean acquisition produced two best results (W5, W6); EI produced the overall best (W8)
 - Eggs peak is narrow: 0.735 works, 0.821 (W7) does not
+- W10: Butter=0.556 with Matérn 3/2 → −0.389 (regression). Both kernel change and ingredient confirmed as cause
+- W11: reverted to Matérn 5/2, Butter restored to 0.770, ξ reduced to 0.001 for tight exploitation
 
 ---
 
@@ -309,7 +330,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | ARD | Disabled for RQ | sklearn's RQ kernel does not support ARD |
 | Acquisition | EI throughout | Consistent improvement with moderate ξ |
 | β | 1.96 → 1.0 (from W9) | Reduced to stay exploitative near confirmed deterministic peak |
-| ξ | 0.05 → 0.005 (W8) → 0.002 (W10) | Progressively tightened |
+| ξ | 0.05 → 0.005 (W8) → 0.01 (W11) | Slightly increased to allow bounded exploration |
+| Search bounds | [0.02–0.15] × [0.31–0.42] × [0.29–0.39] × [0.27–0.37] × [0.22–0.41] × [0.67–0.78] | From W11; all 6 dims bounded |
 | Y-transform | standardize | |
 
 ### Submission history
@@ -326,7 +348,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.095, 0.368, 0.337, 0.318, 0.360, 0.722] | 2.347 | EI ξ=0.05, Matérn | Near W2/W5; confirms stability |
 | 8 | [0.073, 0.358, 0.341, 0.322, 0.272, 0.727] | **2.377** | EI ξ=0.005, **RQ** | **New best** — RQ kernel + D5 reduction |
 | 9 | [0.090, 0.362, 0.338, 0.315, 0.291, 0.724] | **2.451** | EI ξ=0.005, RQ, β=1.0 | **All-time best** (+80%) |
-| 10 | [0.103, 0.343, 0.353, 0.248, 0.380, 0.856] | pending | EI ξ=0.002, RQ, β=1.0 | D6 pushed higher; D4 reduced |
+| 10 | [0.103, 0.343, 0.353, 0.248, 0.380, 0.856] | 1.814 | EI ξ=0.002, RQ, β=1.0 | D6=0.856 way too high — −26% regression |
+| 11 | [0.096, 0.349, 0.355, 0.271, 0.301, 0.717] | pending | EI ξ=0.01, RQ, β=1.0 | All dims within search bounds; near W9 best |
 
 ### All-time best
 
@@ -339,6 +362,7 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 - D6 (regularisation) ≈ 0.72 is load-bearing; D1 (n_estimators) ≈ 0.07–0.10 is optimal
 - D5 was reduced from 0.362 (W2) to 0.272 (W8) to 0.291 (W9) — this dimension had room to optimise
 - Two consecutive improvements after kernel switch (W8, W9) validate the analytical approach
+- W10: D6=0.856 violated [0.707, 0.727] — regression to 1.814 (−26%). Search bounds now prevent this from W11
 
 ### Exploratory analysis
 
@@ -357,8 +381,11 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | Kernel | Matérn 5/2 | Consistent throughout; rough landscape with complex interactions |
 | ARD | Enabled from W3 | 8D space — ARD critical for identifying which dimensions matter |
 | Acquisition | UCB → **EI** (from W8) | Switched to EI after establishing hard constraints |
-| β | 2.5 → 3.5 (W3 mistake) → 2.5 → 1.5 (W7) → 2.5 (W8–W10) | W3's β=3.5 caused catastrophic exploration; W7's β=1.5 produced near-best |
-| ξ | 0.1 → 0.02 (W8) → 0.1 (W9) → 0.049 (W10) | Varying to balance exploit/explore |
+| Acquisition | UCB → EI (W8–W10) → **UCB** (W11) | Switched back to UCB with very low β for bounded exploitation |
+| β | 2.5 → 1.5 (W7) → 2.5 (W8–W10) → **0.4** (W11) | Very low β + search bounds = tight basin exploitation |
+| Dim mask | D1–D5, D7 (6D GP) | From W11; D6/D8 identified as noise via model-free analysis |
+| Search bounds | [0.03–0.22] × [0.08–0.30] × [0.0–0.05] × [0.0–0.05] × [0.93–1.0] × [0.0–1.0] × [0.19–0.36] × [0.0–1.0] | From W11; tight dims fully constrained |
+| LS cap | ≤ 3.0 | From W11; prevents runaway length-scales in data-sparse 6D |
 | Y-transform | standardize | |
 
 ### Submission history
@@ -375,7 +402,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 7 | [0.076, 0.130, 0.011, 0.025, 0.955, 0.157, 0.320, 0.869] | 9.775 | UCB β=1.5, Matérn ARD | Near-best; hard constraints enforced |
 | 8 | [0.094, 0.275, 0.004, 0.019, 0.942, 0.697, 0.329, 0.861] | **9.830** | EI ξ=0.02, Matérn ARD | **New best** — D3→0.004, D4→0.019 |
 | 9 | [0.080, 0.220, 0.003, 0.015, 0.965, 0.506, 0.326, 0.871] | **9.875** | EI ξ=0.1, Matérn ARD | **All-time best** — D3/D4 pushed further |
-| 10 | [0.089, 0.471, 0.007, 0.711, 0.689, 0.953, 0.479, 0.793] | pending | EI ξ=0.049, Matérn ARD | Exploratory: D4/D5 constraint test |
+| 10 | [0.089, 0.471, 0.007, 0.711, 0.689, 0.953, 0.479, 0.793] | 9.166 | EI ξ=0.049, Matérn ARD | D4/D5 massive violation — confirmed constraints |
+| 11 | [0.095, 0.235, 0.0003, 0.010, 0.975, 0.400, 0.330, 0.863] | pending | UCB β=0.4, Matérn ARD | 6D GP + bounded; all tight dims within confirmed ranges |
 
 ### All-time best
 
@@ -387,13 +415,16 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 - D5 must be high (> 0.94): correlated with all top results
 - D6, D7, D8 are relatively insensitive — GP ARD assigns long lengthscales to these dimensions
 - Hard constraint enforcement (manual clipping) is critical: UCB with β=2.5 regularly suggests points outside safe bounds
-- W10 is a deliberate exploratory bet: D4=0.711 and D5=0.689 massively violate established constraints to test whether the GP's ARD conclusions hold
+- W10 D4/D5 violation (9.166 vs 9.875) empirically confirmed constraints hold
+- GP ARD fundamentally broken at n=50 in 8D: D5 gets length-scale 10.0 (should be shortest). D6/D8 are noise but GP treats them as moderately important
+- W11: 6D GP (dropping D6/D8) + search bounds + LS cap ≤3.0 applied — most heavily engineered function
 
 ### Exploratory analysis
 
 - `analysis/03_function8_rf_surrogate.ipynb` — Random Forest feature importance cross-validated GP ARD findings
 - `analysis/05_nn_surrogate_analysis.ipynb` — Deep Ensemble vs GP comparison; GP superior at n ≤ 50
 - `analysis/06_kernel_variants_ngboost.ipynb` — NGBoost tested and rejected (95% PI coverage 2–25%)
+- `analysis/09_function8_landscape_analysis.ipynb` — dimension classification, ARD diagnosis, 6D GP validation, EI pathology analysis
 
 ---
 
@@ -401,16 +432,16 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 
 | Fn | Dims | Kernel (current) | Acquisition | Key params | Y-transform | Initial Best | All-time Best | Best Week | Improvement |
 |----|------|------------------|-------------|-----------|-------------|-------------|--------------|-----------|------------|
-| 1 | 2 | RBF (W10 trial) | UCB β=0.5 | — | arcsinh | ≈0 | 1.64×10⁻⁷ | W8 | +50 orders |
-| 2 | 2 | Matérn 5/2 | UCB β=0.7 | het-GP | standardize | 0.611 | **0.726** | W6 | +19% |
-| 3 | 3 | Matérn 5/2 | EI ξ=0.012 | — | standardize | −0.035 | **−0.009** | W5 | +74% |
-| 4 | 4 | Matérn 3/2 | EI ξ=0.002 | ARD | standardize | −4.026 | **+0.367** | W8 | +109% |
-| 5 | 4 | RBF | Mean | — | standardize | 1088.9 | **2238.7** | W9 | +106% |
-| 6 | 5 | Matérn 3/2 (W10 trial) | EI ξ=0.008 | — | standardize | −0.714 | **−0.246** | W8 | +66% |
-| 7 | 6 | Rational Quadratic | EI ξ=0.002 | β=1.0 | standardize | 1.365 | **2.451** | W9 | +80% |
-| 8 | 8 | Matérn 5/2 | EI ξ=0.049 | ARD | standardize | 9.598 | **9.875** | W9 | +2.9% |
+| 1 | 2 | Matérn 5/2 | UCB β=0.5 | — | arcsinh | ≈0 | 1.64×10⁻⁷ | W8 | +50 orders |
+| 2 | 2 | Matérn 5/2 | UCB β=0.5 | het-GP | standardize | 0.611 | **0.726** | W6 | +19% |
+| 3 | 3 | Matérn 5/2 | EI ξ=0.005 | bounded, LS≤3.0 | standardize | −0.035 | **−0.009** | W5 | +74% |
+| 4 | 4 | Matérn 3/2 | EI ξ=0.001 | ARD, bounded | standardize | −4.026 | **+0.367** | W8 | +109% |
+| 5 | 4 | RBF | Mean | bounded | standardize | 1088.9 | **3448.2** | W10 | +217% |
+| 6 | 5 | Matérn 5/2 | EI ξ=0.001 | — | standardize | −0.714 | **−0.246** | W8 | +66% |
+| 7 | 6 | Rational Quadratic | EI ξ=0.01 | bounded | standardize | 1.365 | **2.451** | W9 | +80% |
+| 8 | 8 | Matérn 5/2 | UCB β=0.4 | ARD, bounded, 6D GP, LS≤3.0 | standardize | 9.598 | **9.875** | W9 | +2.9% |
 
-**All 8 functions have beaten the initial data best.**
+**All 8 functions have beaten the initial data best.** W11 results pending.
 
 ---
 
@@ -488,3 +519,43 @@ NGBoost (Natural Gradient Boosting) was tested in `analysis/06_kernel_variants_n
 **Change:** Added GP kernel dropdown to the Streamlit dashboard (Matérn 5/2, Matérn 3/2, RQ, RBF). Per-function settings (kernel, acquisition, β, ξ) now persist in session state across function switches. Fixed truthiness bug where `xi_override=0.0` was silently ignored.
 
 **Impact:** Kernel choice is now visible and configurable per function in the UI, with the selection recorded in submission metadata and displayed on function cards.
+
+### W11 — F3 landscape analysis (notebook 08)
+
+**Implemented:** Between W10 results and W11 submissions.
+
+**Change:** Deep landscape analysis of Function 3: GP LOO R², length-scale diagnosis, radial decay, per-dimension analysis, pairwise projections, alternative kernels, empirical gradients.
+
+**Key finding:** GP LOO R² < 0.20 for every kernel tested (Matérn 5/2: 0.174, Matérn 3/2: 0.181, RBF: 0.128, RQ: 0.010). The GP is essentially predicting the mean. Matérn 5/2 length-scale D1=4.18 causes the GP to see D1 as flat and extrapolate monotonically toward corners. GP predicted argmax at [1.0, 0.96, 0.46] — the opposite of the confirmed basin at [0.44, 0.46, 0.50]. Spearman radial correlation ρ=−0.718 (p=0.00005) provides more signal model-free than any GP.
+
+### W11 — F8 landscape analysis (notebook 09)
+
+**Implemented:** Between W10 results and W11 submissions.
+
+**Change:** Deep landscape analysis of Function 8: dimension classification (tight/moderate/free), GP ARD diagnosis, acquisition pathology, effective dimensionality, model-free importance, local basin characterisation.
+
+**Key finding:** GP ARD gives D5 a length-scale of 10.0 (optimizer upper bound) despite D5 being one of the most tightly constrained dimensions (range [0.942, 0.989]). D6 and D8 are genuine noise (top-5 spread > 0.6, Spearman |ρ| < 0.02) but the GP treats them as moderately important. A 6D GP (D1–D5, D7) produced length-scales under 1.0 for all tight dims. EI's uncertainty term makes high-uncertainty corners competitive with genuine improvement.
+
+### W11 — Per-function search bounds
+
+**Implemented:** Between W10 results and W11 submissions.
+
+**Change:** Candidate generation now respects per-function search bounds derived from top-5 observation bounding boxes with 10% padding. Added to `FUNCTION_CONFIG` for F3, F4, F5, F7, F8. Candidates sampled via `np.random.uniform(lows, highs, (n_cand, dims))` instead of `np.random.uniform(0, 1, ...)`.
+
+**Impact:** Before/after comparison showed suggestion distance to best known point decreased: F3 from >0.5 to 0.078, F4 from >0.1 to <0.05, F5 within gradient corridor, F7 from >0.15 to <0.05, F8 tight dims all within confirmed ranges. Eliminates the structural cause of acquisition-driven wandering.
+
+### W11 — Dimension masking for F8 (6D GP)
+
+**Implemented:** Alongside search bounds.
+
+**Change:** GP fitted on 6 dimensions (D1–D5, D7) using `dim_mask: [0, 1, 2, 3, 4, 6]`. D6 and D8 identified as noise via model-free analysis. Candidates still span all 8 dimensions (D6/D8 sampled from full range) but GP scores only the masked subset.
+
+**Impact:** Reduces effective data ratio from 50/8 ≈ 6 to 50/6 ≈ 8 points per dimension. Length-scales now correctly reflect narrow basin structure. UI shows "6D GP" badge on F8's function card.
+
+### W11 — Length-scale upper bound cap
+
+**Implemented:** Alongside search bounds.
+
+**Change:** `build_gp` now accepts `ls_bounds` parameter. F3 and F8 configured with `(1e-2, 3.0)` vs default `(1e-2, 10.0)`. Applied to Matérn and RBF kernel instantiation.
+
+**Impact:** Prevents the optimizer from learning length-scales exceeding 3× the domain width. F3's D1 length-scale dropped from 4.18 to <3.0, forcing the GP to learn local structure rather than treating the entire domain as flat.

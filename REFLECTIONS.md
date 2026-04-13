@@ -1360,3 +1360,63 @@ This limitation manifests as overconfident predictions in undersampled regions. 
 
 
 All 8 functions beat their initial data best. F5 was the standout success: six consecutive improvements from W5 to W10, with the final yield more than tripling the initial best.
+
+---
+
+## Week 11 — Surrogate Diagnosis, Search Bounds and Dimension Masking
+
+### Between-weeks analysis: notebooks 08 and 09
+
+The most significant between-weeks engineering of the challenge. Two new analysis notebooks diagnosed **why the GP surrogate was consistently suggesting queries outside confirmed basins**, even with low exploration parameters.
+
+**F3 landscape analysis (notebook 08):**
+- GP LOO R² < 0.20 for every kernel — the GP has essentially no predictive power
+- Matérn 5/2 length-scales of D1=4.18, D2=1.29 mean the GP sees D1 as flat and extrapolates a monotonic trend toward the corner
+- GP predicted argmax at [1.0, 0.96, 0.46] — the exact opposite of the confirmed basin at [0.44, 0.46, 0.50]
+- Spearman(distance_from_best, Y) = −0.718, p = 0.00005 — strong radial structure the GP cannot capture
+- W10's corner probe at [0.99, 0.97, 0.95] → Y = −0.237 (26× worse) empirically confirmed the GP is misleading
+
+**F8 landscape analysis (notebook 09):**
+- GP ARD gives D5 a length-scale of 10.0 (optimizer upper bound) — treats it as completely irrelevant
+- But D5 is one of the most tightly constrained dims in the top-5 (range [0.942, 0.989])
+- D6 and D8 are genuine noise dimensions (top-5 spread > 0.6, Spearman |ρ| < 0.02) but the GP treats them as moderately important
+- A 6D GP dropping D6/D8 produced length-scales under 1.0 for all tight dims (vs > 2.0 in the 8D GP)
+- EI's σ·φ(z) term makes high-uncertainty corners competitive with genuine improvement in the basin
+
+**Cross-function diagnostic** revealed that 5 of 8 functions had wandering acquisition suggestions:
+- F3: EI pushes D1→0.99, D2→0.87 (should be ~0.44, ~0.46)
+- F4: EI pushes D2→0.59, D4→0.47 (should be ≤0.48, ≤0.41)
+- F5: Mean pushes D1→0.23 (should be ≥0.33)
+- F7: EI pushes D2→0.26, D4→0.16, D5→0.18 (all outside basin)
+- F8: EI pushes D2→0.59, D3→0.16, D4→0.32 (massive deviation)
+
+Only F1, F2, and F6 had acquisition suggestions that stayed within the confirmed top-5 bounding box.
+
+### Three engineering changes implemented
+
+**1. Search bounds** — candidates are now sampled from per-function confirmed basins rather than [0,1]^d. Added to F3, F4, F5, F7, F8. Before/after comparison showed suggestion distance to best dropped by 54–89%.
+
+**2. Dimension masking (F8)** — the GP now fits on 6 dimensions (D1–D5, D7), ignoring D6 and D8. Candidates still include all 8 dimensions (D6/D8 sampled from their full range), but the GP scores only the relevant subset.
+
+**3. Length-scale bounds (F3, F8)** — upper limit reduced from 10.0 to 3.0, preventing the optimizer from learning runaway length-scales that flatten the posterior.
+
+### W11 submissions (results pending)
+
+All 8 submissions generated using the updated pipeline with search bounds and clipped to confirmed basins:
+
+| Fn | W11 query | Settings | Strategy |
+|----|-----------|----------|----------|
+| F1 | [0.700, 0.715] | UCB β=0.5, Matérn | Tight near W8 hotspot, returned to Matérn after W10 RBF failure |
+| F2 | [0.700, 0.935] | UCB β=0.5 | Exploitation near peak; β reduced from 0.7 |
+| F3 | [0.511, 0.435, 0.484] | EI ξ=0.005 | First query generated within search bounds; near basin centre |
+| F4 | [0.415, 0.453, 0.371, 0.395] | EI ξ=0.001, Matérn 3/2 | Within bounds; ξ reduced for tighter exploitation |
+| F5 | [0.310, 0.982, 0.997, 0.995] | Mean, RBF | Continuing D2–D4 gradient push toward 1.0 |
+| F6 | [0.491, 0.395, 0.718, 0.770, 0.009] | EI β=0.6, ξ=0.001 | Returned to confirmed basin; β and ξ both reduced |
+| F7 | [0.096, 0.349, 0.355, 0.271, 0.301, 0.717] | EI ξ=0.01, RQ | Within search bounds; all dims near top-5 values |
+| F8 | [0.095, 0.235, 0.0003, 0.010, 0.975, 0.400, 0.330, 0.863] | UCB β=0.4 | 6D GP + bounded search; all tight dims within confirmed ranges |
+
+### Reflection
+
+This was the most impactful engineering change since the output standardisation in W4. The root cause of most regressions in W6–W10 was not poor kernel choice or wrong acquisition parameters — it was that candidates were sampled from the entire hypercube, allowing the acquisition function's uncertainty term to override all prior knowledge. Search bounds solve this structurally: they encode the hard constraint table *into the candidate generation step*, making it impossible for the acquisition to suggest queries in known-bad regions.
+
+The F8 dimension masking is equally significant. At n=50 in 8D, the GP cannot learn correct ARD length-scales — it attributes signal to noise dimensions and misses critical constraints on dimensions like D5. Dropping the noise dimensions and fitting a 6D GP gives the optimizer a tractable problem: 50/6 ≈ 8 points per dimension instead of 50/8 ≈ 6, and every dimension is genuinely relevant.

@@ -259,21 +259,48 @@ The dominant pattern: **exploitation along a confirmed monotonic gradient is the
 
 ---
 
+## Week 10 → Week 11 Strategic Shift
+
+### What happened between W10 and W11
+
+Deep landscape analysis revealed the **root cause of most W6–W10 regressions**: the GP acquisition function was suggesting queries in known-bad regions because candidates were sampled uniformly from [0,1]^d. The uncertainty term (σ·φ(z) in EI, β·σ in UCB) made high-uncertainty corners competitive with genuine improvement near the basin.
+
+Three structural engineering changes were implemented:
+
+1. **Per-function search bounds** (F3, F4, F5, F7, F8) — candidates now sampled from confirmed basins. This is the most impactful single change since output standardisation in W4.
+2. **Dimension masking** (F8) — GP fitted on 6 of 8 dimensions. D6 and D8 are noise (top-5 spread > 0.6, Spearman |ρ| < 0.02). Reducing from 8D to 6D improves the data-to-dimension ratio from 6.25 to 8.33.
+3. **Length-scale cap** (F3, F8) — upper bound reduced from 10.0 to 3.0. F3's D1 previously learned LS=4.18, making the GP see a flat function.
+
+### W11 strategic posture by function
+
+| Fn | Strategy | Rationale |
+|----|----------|-----------|
+| F1 | Return to Matérn 5/2, tight near W8 hotspot | W10 RBF trial failed (3 orders worse). Matérn's finite differentiability better matches steep radial decay |
+| F2 | Reduce β from 0.7 to 0.5, stay near peak | Noise-dominated; any query >0.01 from [0.70, 0.93] is wasted |
+| F3 | First bounded query, EI ξ=0.005 | Basin-constrained for the first time; GP now forced to learn local structure |
+| F4 | Bounded, ξ reduced to 0.001 | Tightest exploitation yet; all 4 dims within confirmed [0.39–0.51] |
+| F5 | Continue gradient push, D2–D4 → 1.0 | 6 consecutive bests; no reason to change strategy |
+| F6 | Return to Matérn 5/2, reduced β and ξ | W10's Matérn 3/2 and exploration failed; revert to reliable config |
+| F7 | Bounded, RQ kernel, ξ=0.01 | Search bounds prevent the known D4/D5 drift |
+| F8 | 6D GP, bounded, UCB β=0.4 | Most heavily engineered function — all three changes applied simultaneously |
+
+---
+
 ## Hard Dimension Constraints (Evidence-Based)
 
 These constraints are derived from multiple weeks of observation and should not be violated without strong analytical justification:
 
 
-| Fn  | Constraint                                                                     | Evidence                                                                                             | W10 status                                              |
-| --- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| F1  | X₁ ∈ [0.65, 0.72]; X₂ ∈ [0.68, 0.73]                                           | W8 at [0.691, 0.707] → 1.6×10⁻⁷; W10 at [0.702, 0.721] → 3.7×10⁻¹⁰ (still in band but weaker)        | Confirmed                                               |
-| F2  | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.92, 0.94]                                           | W6 best at X₂=0.932; W10 at [0.706, 0.934] → 0.564 (noise-dominated)                                 | Confirmed                                               |
-| F3  | A ∈ [0.43, 0.46]; B ∈ [0.46, 0.52]; C ∈ [0.47, 0.52]                           | W5 best at [0.439, 0.461, 0.503]; W10 corner probe [0.99, 0.97, 0.95] → −0.237                       | **Strongly confirmed** — corner is 26× worse            |
-| F4  | All dims ∈ [0.35, 0.45]                                                        | W6–W8 three consecutive bests; W9 D1=0.23 → −3.21; W10 P2=0.484 → −1.43                              | Confirmed — even P2=0.48 too high                       |
-| F5  | C1 ∈ [0.33, 0.36]; C2 → 1.0; C3 → 1.0; C4 → 1.0                                | W10 best at [0.332, 0.951, 0.985, 0.980] → 3448.2 — 6th consecutive improvement pushing D2–D4 higher | **Updated** — upper bounds removed; gradient to 1.0     |
-| F6  | Flour ∈ [0.40, 0.50]; Eggs ∈ [0.73, 0.77]; Butter ∈ [0.77, 0.83]; Milk < 0.02  | W8 best at Butter=0.782; W10 Butter=0.556 → −0.389 (regression)                                      | **Strongly confirmed** — Butter << 0.77 fails           |
-| F7  | D1 ∈ [0.07, 0.10]; D2 ∈ [0.343, 0.370]; D5 ∈ [0.26, 0.37]; D6 ∈ [0.707, 0.727] | W9 best at D6=0.724; W10 D6=0.856 → 1.814 (−26%)                                                     | **Tightened** — D6 upper bound confirmed at ~0.73       |
-| F8  | D1 < 0.10; D3 < 0.005; D4 < 0.02; D5 > 0.94                                    | W9 best at D4=0.016, D5=0.965; W10 D4=0.711, D5=0.689 → 9.166 (−7.2%)                                | **Strongly confirmed** — massive D4/D5 violation failed |
+| Fn  | Constraint                                                                     | Evidence                                                                                             | W11 status                                                  |
+| --- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| F1  | X₁ ∈ [0.65, 0.72]; X₂ ∈ [0.68, 0.73]                                           | W8 at [0.691, 0.707] → 1.6×10⁻⁷; W10 at [0.702, 0.721] → 3.7×10⁻¹⁰ (still in band but weaker)        | Confirmed — W11 at [0.700, 0.715], within band              |
+| F2  | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.92, 0.94]                                           | W6 best at X₂=0.932; W10 at [0.706, 0.934] → 0.564 (noise-dominated)                                 | Confirmed — W11 at [0.700, 0.935], within band              |
+| F3  | A ∈ [0.35, 0.60]; B ∈ [0.36, 0.56]; C ∈ [0.43, 0.55]                           | W5 best at [0.439, 0.461, 0.503]; W10 corner probe → −0.237. Search bounds now enforced               | **Enforced** — search bounds active; W11 within basin       |
+| F4  | D1 ∈ [0.39, 0.51]; D2 ∈ [0.36, 0.54]; D3 ∈ [0.26, 0.42]; D4 ∈ [0.27, 0.46]   | W6–W8 three consecutive bests; W9 D1=0.23 → −3.21; W10 P2=0.484 → −1.43. Search bounds now enforced  | **Enforced** — search bounds active; W11 within basin       |
+| F5  | C1 ∈ [0.28, 0.40]; C2 → 1.0; C3 → 1.0; C4 → 1.0                                | W10 best at [0.332, 0.951, 0.985, 0.980] → 3448.2. Search bounds enforce gradient corridor            | **Enforced** — D2–D4 upper bounds set to 1.0               |
+| F6  | Flour ∈ [0.40, 0.50]; Eggs ∈ [0.73, 0.77]; Butter ∈ [0.77, 0.83]; Milk < 0.02  | W8 best at Butter=0.782; W10 Butter=0.556 → −0.389 (regression)                                      | Confirmed — no search bounds (F6 stays within naturally)    |
+| F7  | D1 ∈ [0.02, 0.15]; D2 ∈ [0.31, 0.42]; D3 ∈ [0.29, 0.39]; D4 ∈ [0.27, 0.37]; D5 ∈ [0.22, 0.41]; D6 ∈ [0.67, 0.78] | W9 best; W10 D6=0.856 → −26%. Search bounds now enforced                               | **Enforced** — all 6 dims bounded; W11 within basin         |
+| F8  | D1 < 0.22; D3 < 0.05; D4 < 0.05; D5 > 0.93; D7 ∈ [0.19, 0.36]                 | W9 best; W10 massive violation → −7.2%. Search bounds + 6D GP + LS cap now enforced                   | **Enforced** — search bounds + dim mask + LS cap all active |
 
 
 ---
@@ -312,5 +339,9 @@ These constraints are derived from multiple weeks of observation and should not 
 | 10   | **Exploration fails reliably in the final weeks.** F3 corner probe (−0.237), F6 Butter reduction (−0.389), F8 constraint violation (9.166) — all three deliberate exploratory bets regressed. By W10, exploitation is the only rational strategy.                            |
 | 10   | **Noise-dominated functions cannot be improved by query tuning alone.** F2's last 5 submissions (W6–W10) all targeted X within 0.01 of the best, yet only W6 found the peak. The limiting factor is irreducible stochasticity, not surrogate quality.                        |
 | 10   | **Hard constraint tables should be a W1 deliverable, not a W6 one.** Retrospectively, building and enforcing the constraint table from week 1 would have saved at least 8–10 wasted queries across all functions.                                                            |
-
+| 10–11 | **The candidate generation region is the most impactful hyperparameter.** Sampling 5000 candidates from [0,1]^d means most fall far from the basin. The acquisition's σ·φ(z) term makes high-uncertainty corners competitive, overriding prior knowledge. Search bounds eliminate this structurally. |
+| 10–11 | **Dimension masking outperforms ARD in data-sparse regimes.** F8's 8D ARD gave D5 a length-scale of 10.0 (upper bound). Dropping D6/D8 and fitting a 6D GP produced length-scales under 1.0. When n/d < 8, manually identifying noise dims beats ARD. |
+| 10–11 | **Length-scale upper bounds should be function-specific.** Default LS bound of 10.0 lets the optimizer learn length-scales 10× the domain width. Capping at 3.0 for F3/F8 forces tighter structure. |
+| 10–11 | **GP LOO R² < 0.20 means the surrogate is useless.** F3's R² was 0.17 for all kernels. Radial Spearman (ρ=−0.718) provided more signal from 25 points than any GP could. |
+| 10–11 | **5 of 8 acquisition functions wander when unconstrained.** Only F1, F2, F6 stay within the top-5 bounding box. This was the hidden cause of many W6–W10 regressions. |
 

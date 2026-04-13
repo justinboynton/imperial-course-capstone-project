@@ -168,7 +168,7 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 | 8   | 8D   | Complex ML hyperparameters     | 9.5985         | **9.8753**    | W9        | +2.9%                  |
 
 
-**All 8 functions beat the initial data best across the 10-week challenge. F5 was the standout success: six consecutive improvements (W5→W10), with the final yield more than tripling the initial best (+217%). W8 was the highest-impact week (6 new bests); W10 produced one final best (F5). Exploitation dominated: 7/8 all-time bests came from tight perturbation within confirmed basins.**
+**All 8 functions beat the initial data best. F5 was the standout success: six consecutive improvements (W5→W10), with the final yield more than tripling the initial best (+217%). W8 was the highest-impact week (6 new bests); W10 produced one final best (F5). Exploitation dominated: 7/8 all-time bests came from tight perturbation within confirmed basins. W11: major surrogate engineering (search bounds, dim masking, LS cap) — results pending.**
 
 ---
 
@@ -230,6 +230,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | 8    | 2026-05-01 | All 8 functions | **Best week of the challenge: 6 new all-time bests.** F1 breakthrough (1.6×10⁻⁷) — hotspot hunt analysis validated, +50 orders of magnitude. F4 third consecutive improvement (+0.367, Matérn 3/2 confirmed). F5 massive D2 breakout (1963.7, +32%). F6 recovered (−0.246, Flour/Eggs rebalanced). F7 first improvement over W2 in six weeks (2.377, RQ kernel + D5 reduction). F8 new best (9.830, D3/D4 pushed toward zero). F2 near-best (0.715). F3 drifting (−0.017). All 8 functions now beat initial data best.                                               |
 | 9    | 2026-05-08 | All 8 functions | **3 new all-time bests** — F5 (2238.7, 4th consecutive), F7 (2.451, RQ kernel + micro-perturbation), F8 (9.875, D3/D4 toward zero). F4 speculative D1=0.230 probe returned −3.21 (worst since W1) — hard constraint violation punished. F2, F3, F6 regressions. F1 regression (−1.3×10⁻¹⁴). Tight exploitation confirmed as dominant strategy.                                                                                                                                                                                                                       |
 | 10   | 2026-05-15 | All 8 functions | **1 new all-time best** — F5 (3448.2, **+54%, 6th consecutive improvement**). All 3 exploratory bets failed: F3 corner probe (−0.237, 26× worse), F6 Butter reduction (−0.389), F8 massive constraint violation (9.166). F1 RBF kernel trial (3.67×10⁻¹⁰) worse than Matérn. F2 noise-dominated (0.564).                                                                                                                                                                                                                                                             |
+| 11   | 2026-05-22 | All 8 functions | **Major surrogate engineering — 3 structural changes.** Landscape analysis (notebooks 08, 09) diagnosed GP wandering: LOO R²<0.20 for F3, ARD failure for F8 (D5 LS=10.0). Implemented search bounds for F3/F4/F5/F7/F8, dimension masking for F8 (6D GP dropping D6/D8), LS cap ≤3.0 for F3/F8. Suggestion distance to known best improved 54–89% across constrained functions. All queries exploit within confirmed basins. Results pending. |
 
 
 ---
@@ -253,6 +254,11 @@ The following improvements have been made to the surrogate pipeline since Week 1
 | Per-function settings persistence                   | W10           | All functions — acq, β, ξ, kernel now preserved per-function when switching in UI                |
 | F5 gradient continuation to boundary                | W10           | F5 D2/D3/D4 pushed toward 1.0 — 6th consecutive best, +217% total improvement                    |
 | Hard constraint validation via deliberate violation | W10           | F8 (D4/D5 violated → confirmed), F3 (corner probe → confirmed), F6 (Butter violated → confirmed) |
+| Per-function search bounds                          | W11           | F3, F4, F5, F7, F8 — candidates sampled from confirmed basins instead of [0,1]^d                 |
+| Dimension masking (6D GP)                           | W11           | F8 — D6/D8 dropped from GP fitting; reduces effective dimensionality from 8 to 6                  |
+| Length-scale upper bound cap                        | W11           | F3, F8 — LS ≤ 3.0 prevents optimizer from learning runaway length-scales                         |
+| F3 landscape analysis (notebook 08)                 | Between W10–W11 | Diagnosed GP LOO R² < 0.20, length-scale pathology, radial decay ρ=−0.718                       |
+| F8 landscape analysis (notebook 09)                 | Between W10–W11 | Diagnosed ARD failure (D5 LS=10.0), 6D GP improvement, EI corner pathology                      |
 
 
 ---

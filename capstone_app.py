@@ -288,26 +288,30 @@ FUNCTION_CONFIG = {
         "dims": 3, "bounds": [(0.0,1.0)]*3,
         "kernel": "matern", "acquisition": "ei", "beta": 1.96, "xi": 0.02,
         "y_transform": "standardize",
+        "ls_bounds": (1e-2, 3.0),
+        "search_bounds": [(0.35, 0.60), (0.36, 0.56), (0.43, 0.55)],
         "description": "3D drug compound combinations",
         "dim_labels": ["Compound A", "Compound B", "Compound C"],
-        "notes": "Physical process — Matern kernel appropriate. EI balances improvement focus with uncertainty. Negated side effects = maximise.",
+        "notes": "Physical process — Matern kernel appropriate. EI balances improvement focus with uncertainty. Negated side effects = maximise. W10 analysis (notebook 08): GP LOO R²<0.20 for all kernels; Spearman(dist_from_best, Y)=−0.718. GP suggests corners because length-scales are too long. Search bounds constrain candidates to confirmed basin.",
     },
     4: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
         "kernel": "matern32", "acquisition": "ei", "beta": 1.5, "xi": 0.01,
         "ard": True,
         "y_transform": "standardize",
+        "search_bounds": [(0.39, 0.51), (0.36, 0.54), (0.26, 0.42), (0.27, 0.46)],
         "description": "4D warehouse ML hyperparameter tuning",
         "dim_labels": ["Param 1", "Param 2", "Param 3", "Param 4"],
-        "notes": "W6 analysis (notebook 06) showed Matérn 3/2 ARD achieves LOO R²=0.961 vs Matérn 5/2's 0.485 — switched to Matérn 3/2. The rougher kernel better captures the sharp bowl-shape confirmed by the W6 positive-Y breakthrough. Switch from UCB to EI ξ=0.01 to exploit the newly discovered positive-Y region tightly.",
+        "notes": "W6 analysis (notebook 06) showed Matérn 3/2 ARD achieves LOO R²=0.961 vs Matérn 5/2's 0.485 — switched to Matérn 3/2. The rougher kernel better captures the sharp bowl-shape confirmed by the W6 positive-Y breakthrough. Switch from UCB to EI ξ=0.01 to exploit the newly discovered positive-Y region tightly. W10 analysis: EI pushes D2/D4 outside confirmed basin — search bounds added.",
     },
     5: {
         "dims": 4, "bounds": [(0.0,1.0)]*4,
         "kernel": "rbf", "acquisition": "ei", "beta": 1.5, "xi": 0.01,
         "y_transform": "standardize",
+        "search_bounds": [(0.28, 0.40), (0.78, 1.0), (0.90, 1.0), (0.82, 1.0)],
         "description": "4D chemical yield (unimodal)",
         "dim_labels": ["Chemical 1", "Chemical 2", "Chemical 3", "Chemical 4"],
-        "notes": "Unimodal — safest to exploit aggressively once in the right neighbourhood. Low xi on EI. Shift to pure exploitation by week 4.",
+        "notes": "Unimodal — safest to exploit aggressively once in the right neighbourhood. Low xi on EI. W10 analysis: GP mean pushes D1→0.23 below confirmed [0.33, 0.35] basin. D2–D4 gradient toward 1.0 confirmed over 6 consecutive bests — upper bound set to 1.0.",
     },
     6: {
         "dims": 5, "bounds": [(0.0,1.0)]*5,
@@ -322,13 +326,14 @@ FUNCTION_CONFIG = {
         "kernel": "rq", "acquisition": "ei", "beta": 1.0, "xi": 0.005,
         "ard": False,
         "y_transform": "standardize",
+        "search_bounds": [(0.02, 0.15), (0.31, 0.42), (0.29, 0.39), (0.27, 0.37), (0.22, 0.41), (0.67, 0.78)],
         "description": "6D gradient boosting hyperparameters",
         "dim_labels": [
             "Dim 1: n_estimators [0–1]", "Dim 2: learning_rate [0–1]",
             "Dim 3: max_depth [0–1]",    "Dim 4: subsample [0–1]",
             "Dim 5: max_features [0–1]", "Dim 6: regularisation [0–1]",
         ],
-        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. W6 analysis (notebook 06) showed Rational Quadratic kernel achieves LOO R²=0.868 vs Matérn 5/2's 0.493–0.722 — switched to RQ. RQ's multi-scale structure captures both broad flat regions and the narrow peak near [0.095, 0.365]. RQ over-estimates uncertainty (coverage=1.000 in LOO) so β reduced to 1.0 and ξ to 0.005 to stay exploitative. Function is confirmed deterministic — no need for exploration.",
+        "notes": "Almost certainly GBM — all inputs normalised to [0,1] by the platform. W6 analysis (notebook 06) showed Rational Quadratic kernel achieves LOO R²=0.868 vs Matérn 5/2's 0.493–0.722 — switched to RQ. RQ's multi-scale structure captures both broad flat regions and the narrow peak near [0.095, 0.365]. RQ over-estimates uncertainty (coverage=1.000 in LOO) so β reduced to 1.0 and ξ to 0.005 to stay exploitative. Function is confirmed deterministic. W10 analysis: EI pushes D2/D4/D5 outside confirmed basin — search bounds added.",
         "informed_start": [0.333, 0.310, 0.250, 0.800, 0.800, 0.050],
     },
     8: {
@@ -336,9 +341,12 @@ FUNCTION_CONFIG = {
         "kernel": "matern", "acquisition": "ucb", "beta": 2.5, "xi": 0.1,
         "ard": True,
         "y_transform": "standardize",
+        "ls_bounds": (1e-2, 3.0),
+        "search_bounds": [(0.03, 0.22), (0.08, 0.30), (0.0, 0.05), (0.0, 0.05), (0.93, 1.0), (0.0, 1.0), (0.19, 0.36), (0.0, 1.0)],
+        "dim_mask": [0, 1, 2, 3, 4, 6],
         "description": "8D complex black-box (ML hyperparameters)",
         "dim_labels": [f"Param {i+1}" for i in range(8)],
-        "notes": "Hardest function. GP at 8D will be uncertain — accept this. High beta UCB keeps exploration broad. ARD enabled: D1 and D3 have strong negative correlation (r≈−0.65) and dominate RF importance; ARD learns short length-scales for these vs long for D6/D8.",
+        "notes": "Hardest function. W10 analysis (notebook 09): GP ARD gives D5 length-scale=10.0 (treats it as irrelevant when it is critical). D6/D8 are noise dims (top-5 spread>0.6). dim_mask=[D1–D5,D7] fits a 6D GP dropping D6/D8 — produces length-scales<1.0 vs >2.0 in 8D. ls_bounds capped at 3.0 to prevent runaway length-scales. search_bounds constrain candidates to confirmed basin; D6/D8 left free.",
     },
 }
 
@@ -468,7 +476,7 @@ def invert_y_transform(Y_t: np.ndarray, method: str | None, scale) -> np.ndarray
 
 
 def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
-             normalize_y: bool = True, alpha=1e-6):
+             normalize_y: bool = True, alpha=1e-6, ls_bounds=None):
     """Build a GP with isotropic or ARD kernel.
 
     ard=True: use a separate length-scale per dimension (Automatic Relevance
@@ -483,18 +491,23 @@ def build_gp(kernel_type: str = "matern", dims: int = 1, ard: bool = False,
     alpha: float or array-like (n_samples,). When an array is passed (from
     compute_heteroscedastic_alpha) each training point gets its own noise
     variance, giving a heteroscedastic GP.
+
+    ls_bounds: tuple (lo, hi) for length-scale optimisation bounds. Defaults
+    to (1e-2, 10.0). Tighter bounds (e.g. (1e-2, 3.0)) prevent the optimizer
+    from learning excessively long length-scales in data-sparse regimes.
     """
+    if ls_bounds is None:
+        ls_bounds = (1e-2, 10.0)
     ls = np.ones(dims) if (ard and dims > 1) else 1.0
     if kernel_type == "rbf":
-        kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=(1e-2, 10.0))
+        kernel = C(1.0) * RBF(length_scale=ls, length_scale_bounds=ls_bounds)
     elif kernel_type == "matern32":
-        kernel = C(1.0) * Matern(length_scale=ls, nu=1.5, length_scale_bounds=(1e-2, 10.0))
+        kernel = C(1.0) * Matern(length_scale=ls, nu=1.5, length_scale_bounds=ls_bounds)
     elif kernel_type == "rq":
-        # Rational Quadratic: mixture of RBF at all length-scales; no ARD in sklearn
         from sklearn.gaussian_process.kernels import RationalQuadratic
         kernel = C(1.0) * RationalQuadratic(length_scale=1.0, alpha=1.0)
     else:
-        kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=(1e-2, 10.0))
+        kernel = C(1.0) * Matern(length_scale=ls, nu=2.5, length_scale_bounds=ls_bounds)
     return GaussianProcessRegressor(kernel=kernel, alpha=alpha, normalize_y=normalize_y,
                                     n_restarts_optimizer=5)
 
@@ -612,45 +625,59 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
 
     if not np.all(np.isfinite(Y)):
         Y = np.nan_to_num(Y, nan=0.0, posinf=1e300, neginf=-1e300)
-    # Extreme magnitudes (e.g. typo 1e-185 or huge scores) destabilise the GP kernel matrix.
     Y = np.clip(Y, -1e12, 1e12)
 
-    # Optional Y-transform (e.g. arcsinh for F1's near-zero landscape)
+    # --- Dimension masking: fit GP on a subset of dimensions ---
+    dim_mask = cfg.get("dim_mask")
+    full_dims = cfg["dims"]
+    if dim_mask is not None:
+        X_gp = X[:, dim_mask]
+        gp_dims = len(dim_mask)
+    else:
+        X_gp = X
+        gp_dims = full_dims
+
     y_transform = cfg.get("y_transform")
     Y_fit, yt_scale = apply_y_transform(Y, y_transform)
     y_max_fit = Y_fit.max()
 
-    # Heteroscedastic GP: compute per-point noise from LOO residuals on Y_fit
-    # (already standardised), then build the GP with that alpha array.
-    # normalize_y must be False here — Y_fit is already in z-score units and
-    # the alpha values are in the same z-score units; double-normalising would
-    # divide both the targets and alphas by an extra factor.
-    if cfg.get("heteroscedastic") and len(Y_fit) >= 4:
-        alpha_arr = compute_heteroscedastic_alpha(X, Y_fit)
-        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
-                      normalize_y=False, alpha=alpha_arr)
-    else:
-        # Don't double-normalise: if a y_transform is active it already
-        # standardises Y; only fall back to GP-internal normalisation when
-        # no transform is in use.
-        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
-                      normalize_y=(y_transform is None))
-    gp.fit(X, Y_fit)
+    ls_bounds = cfg.get("ls_bounds")
 
+    if cfg.get("heteroscedastic") and len(Y_fit) >= 4:
+        alpha_arr = compute_heteroscedastic_alpha(X_gp, Y_fit)
+        gp = build_gp(kernel, dims=gp_dims, ard=cfg.get("ard", False),
+                      normalize_y=False, alpha=alpha_arr, ls_bounds=ls_bounds)
+    else:
+        gp = build_gp(kernel, dims=gp_dims, ard=cfg.get("ard", False),
+                      normalize_y=(y_transform is None), ls_bounds=ls_bounds)
+    gp.fit(X_gp, Y_fit)
+
+    # --- Candidate generation: use search_bounds if configured ---
     n_cand = 5000
-    candidates = np.random.uniform(0, 1, (n_cand, cfg["dims"]))
-    mean, std = gp.predict(candidates, return_std=True)
+    search_bounds = cfg.get("search_bounds")
+    if search_bounds is not None:
+        lows = np.array([b[0] for b in search_bounds])
+        highs = np.array([b[1] for b in search_bounds])
+        candidates = np.random.uniform(lows, highs, (n_cand, full_dims))
+    else:
+        candidates = np.random.uniform(0, 1, (n_cand, full_dims))
+
+    # Project candidates to GP dimensions for scoring
+    if dim_mask is not None:
+        cand_gp = candidates[:, dim_mask]
+    else:
+        cand_gp = candidates
+
+    mean, std = gp.predict(cand_gp, return_std=True)
     scores = compute_acquisition(acq, mean, std, y_max_fit, beta, xi)
     best = np.argmax(scores)
     suggestion = np.clip(candidates[best], 0.0, 1.0)
 
-    # Return mean/std in original Y scale for display.
-    # yt_scale is a (mean, std) tuple for "standardize", a float for "arcsinh".
     mean_display = float(invert_y_transform(np.array([mean[best]]), y_transform, yt_scale)[0])
     if y_transform == "arcsinh":
         std_display = float(std[best] * yt_scale)
     elif y_transform == "standardize":
-        std_display = float(std[best] * yt_scale[1])   # scale back by Y std-dev
+        std_display = float(std[best] * yt_scale[1])
     else:
         std_display = float(std[best])
     return [round(float(v), 6) for v in suggestion], mean_display, std_display
@@ -704,9 +731,13 @@ def _prepare_gp(fn_id, history, initial_data, kernel_override=None):
     """
     Fit a GP on combined initial + portal data for fn_id.
     Returns (gp, X_train, Y_train, best_x) or None if < 2 points.
+    Note: visualisation functions use raw Y (no transform) so plots stay in
+    interpretable units. The GP here is fitted on raw Y with normalize_y=True.
+    dim_mask is NOT applied here — visualisation needs all dims for slice plots.
     """
     cfg = FUNCTION_CONFIG[fn_id]
     kernel = kernel_override if kernel_override is not None else cfg["kernel"]
+    ls_bounds = cfg.get("ls_bounds")
     fn_h = history[fn_id]
     X_parts, Y_parts = [], []
     init = (initial_data or {}).get(fn_id)
@@ -729,19 +760,15 @@ def _prepare_gp(fn_id, history, initial_data, kernel_override=None):
     Y = np.clip(Y, -1e12, 1e12)
     if len(Y) < 2:
         return None
-    # Visualization uses raw Y (no transform) so plots stay in interpretable units.
-    # For heteroscedastic functions, convert LOO alpha from raw-Y² units to
-    # the normalized units that the GP uses internally (normalize_y=True divides
-    # targets by Y.std(), so the kernel operates on a unit-variance signal and
-    # alpha must be scaled by 1/Y.std()² to match).
     if cfg.get("heteroscedastic") and len(Y) >= 4:
         y_std = max(float(np.std(Y)), 1e-8)
         alpha_raw = compute_heteroscedastic_alpha(X, Y)
         alpha_norm = alpha_raw / (y_std ** 2)
         gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
-                      normalize_y=True, alpha=alpha_norm)
+                      normalize_y=True, alpha=alpha_norm, ls_bounds=ls_bounds)
     else:
-        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False))
+        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
+                      ls_bounds=ls_bounds)
     gp.fit(X, Y)
     best_x = X[np.argmax(Y)].copy()
     return gp, X, Y, best_x
@@ -1345,6 +1372,7 @@ with left_col:
           <span class="pill" style="background:rgba(124,58,237,0.15);color:#a78bfa">β={beta_display}</span>
           <span class="pill" style="background:rgba(16,185,129,0.15);color:#10b981">ξ={xi_display}</span>
           <span class="pill" style="background:rgba(0,212,255,0.10);color:#38bdf8">{kernel_display}</span>
+          {"" if cfg.get("search_bounds") is None else '<span class="pill" style="background:rgba(251,146,60,0.15);color:#fb923c">bounded</span>'}{"" if cfg.get("dim_mask") is None else '<span class="pill" style="background:rgba(251,146,60,0.15);color:#fb923c">' + str(len(cfg["dim_mask"])) + 'D GP</span>'}
         </div>
         """, unsafe_allow_html=True)
         if st.button(f"Select F{fn_id}", key=f"sel_{fn_id}", use_container_width=True,
@@ -1445,6 +1473,18 @@ with right_col:
             _cur_xi = get_fn_setting(fn_id, "xi")
             xi_val = st.slider("ξ (EI/PI exploration)", 0.00, 0.25, float(_cur_xi), 0.001, key=f"xi_{fn_id}", format="%0.3f")
             set_fn_setting(fn_id, "xi", xi_val)
+
+            _sb = cfg.get("search_bounds")
+            _dm = cfg.get("dim_mask")
+            if _sb is not None or _dm is not None:
+                _badges = []
+                if _sb is not None:
+                    _badges.append(f"🔒 Search bounded ({len(_sb)}D)")
+                if _dm is not None:
+                    _badges.append(f"🧬 GP uses {len(_dm)}/{cfg['dims']}D")
+                if cfg.get("ls_bounds"):
+                    _badges.append(f"📏 LS≤{cfg['ls_bounds'][1]}")
+                st.caption(" · ".join(_badges))
 
             st.markdown("")
             c1, c2 = st.columns(2)
