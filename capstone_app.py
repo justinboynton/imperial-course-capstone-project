@@ -1439,7 +1439,7 @@ with right_col:
             st.session_state.acq_overrides[fn_id] = acq_choice
 
             _cur_beta = get_fn_setting(fn_id, "beta")
-            beta_val = st.slider("β (UCB exploration)", 0.5, 5.0, float(_cur_beta), 0.1, key=f"beta_{fn_id}", format="%0.2f")
+            beta_val = st.slider("β (UCB exploration)", 0.0, 5.0, float(_cur_beta), 0.1, key=f"beta_{fn_id}", format="%0.2f")
             set_fn_setting(fn_id, "beta", beta_val)
 
             _cur_xi = get_fn_setting(fn_id, "xi")

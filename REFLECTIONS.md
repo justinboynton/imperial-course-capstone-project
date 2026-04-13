@@ -1015,6 +1015,7 @@ Analysis notebook: `analysis/06_kernel_variants_ngboost.ipynb`
 ### Motivation
 
 Two open questions after W6:
+
 1. Is Matérn 5/2 the optimal GP kernel for each function now that we have more data?
 2. Can NGBoost — which outputs a full Gaussian distribution without bootstrap tricks — match the GP on predictive accuracy and uncertainty calibration?
 
@@ -1024,16 +1025,18 @@ Functions tested: F4 (4D, n=36), F7 (6D, n=36), F8 (8D, n=46).
 
 Four kernels compared via Leave-One-Out cross-validation:
 
-| Function | Kernel | LOO R² | 95% PI Coverage |
-|----------|--------|--------|----------------|
-| F4 | **Matérn 3/2 ARD** | **0.961** | 0.889 |
-| F4 | Matérn 5/2 ARD (was production) | 0.485 | 0.722 |
-| F4 | Rational Quadratic | 0.919 | 0.889 |
-| F7 | Matérn 5/2 ARD | 0.493–0.722 | 0.917–0.972 |
-| F7 | **Rational Quadratic** | **0.868** | 1.000 |
-| F7 | Matérn + Linear | 0.667 | 0.944 |
-| F8 | Rational Quadratic | 0.870 | **0.935** |
-| F8 | Matérn 5/2 ARD | 0.861 | 0.848 |
+
+| Function | Kernel                          | LOO R²      | 95% PI Coverage |
+| -------- | ------------------------------- | ----------- | --------------- |
+| F4       | **Matérn 3/2 ARD**              | **0.961**   | 0.889           |
+| F4       | Matérn 5/2 ARD (was production) | 0.485       | 0.722           |
+| F4       | Rational Quadratic              | 0.919       | 0.889           |
+| F7       | Matérn 5/2 ARD                  | 0.493–0.722 | 0.917–0.972     |
+| F7       | **Rational Quadratic**          | **0.868**   | 1.000           |
+| F7       | Matérn + Linear                 | 0.667       | 0.944           |
+| F8       | Rational Quadratic              | 0.870       | **0.935**       |
+| F8       | Matérn 5/2 ARD                  | 0.861       | 0.848           |
+
 
 **F4 is the critical finding.** The production Matérn 5/2 kernel achieves LOO R²=0.485 for F4 — effectively poor generalisation. Switching to Matérn 3/2 improves this to 0.961. The rougher kernel (once-differentiable rather than twice-differentiable) better matches F4's landscape structure: a bowl-shape with a sharp peak at all-moderate settings. This means the GP surrogate used for W1–W6 was significantly under-fitting F4's curvature, and queries were based on an inferior landscape model. Switching to Matérn 3/2 immediately for W7.
 
@@ -1043,14 +1046,16 @@ Four kernels compared via Leave-One-Out cross-validation:
 
 ### NGBoost vs GP — Results
 
-| Function | Model | R² | 95% Coverage |
-|----------|-------|----|-------------|
-| F4 | GP Matérn 5/2 (LOO) | 0.474 | 0.667 |
-| F4 | NGBoost stochastic (5-fold) | 0.874 | **0.250** |
-| F7 | GP Matérn 5/2 (LOO) | **0.722** | **0.972** |
-| F7 | NGBoost best (stochastic) | 0.641 | 0.333 |
-| F8 | GP Matérn 5/2 (LOO) | **0.860** | 0.848 |
-| F8 | NGBoost best (stochastic) | 0.765 | **0.065** |
+
+| Function | Model                       | R²        | 95% Coverage |
+| -------- | --------------------------- | --------- | ------------ |
+| F4       | GP Matérn 5/2 (LOO)         | 0.474     | 0.667        |
+| F4       | NGBoost stochastic (5-fold) | 0.874     | **0.250**    |
+| F7       | GP Matérn 5/2 (LOO)         | **0.722** | **0.972**    |
+| F7       | NGBoost best (stochastic)   | 0.641     | 0.333        |
+| F8       | GP Matérn 5/2 (LOO)         | **0.860** | 0.848        |
+| F8       | NGBoost best (stochastic)   | 0.765     | **0.065**    |
+
 
 NGBoost is entirely unsuitable as a BBO surrogate at current dataset sizes. While the stochastic variant (minibatch_frac=0.5) achieves reasonable R² for F4 (0.874), its 95% PI coverage is 0.250 — meaning the stated 95% intervals contain the true value only 25% of the time. For F8 it is even worse at 0.065. An acquisition function based on NGBoost uncertainty would be severely over-exploitative: it would see falsely low uncertainty everywhere and generate queries that cluster tightly rather than exploring.
 
@@ -1079,13 +1084,15 @@ F1 has returned effectively zero for seven consecutive portal submissions. The r
 
 When F1's outputs are analysed in **log₁₀(|Y|) space**, a clear spatial structure emerges that is entirely invisible in raw space:
 
-| Observation | Y | log₁₀(\|Y\|) | Distance from [0.65, 0.68] |
-|------------|---|------------|---------------------------|
-| [0.6501, 0.6815] (init) | −3.6×10⁻³ | −2.4 | 0.000 |
-| [0.7310, 0.7330] (init) | +7.7×10⁻¹⁶ | −15.1 | 0.096 |
-| [0.7749, 0.7634] (W4) | −1.6×10⁻²⁷ | −26.8 | 0.149 |
-| [0.6834, 0.8611] (init) | +2.5×10⁻⁴⁰ | −39.6 | 0.183 |
-| [0.0800, 0.2000] (W7) | −3.1×10⁻¹¹⁶ | −115.5 | 0.746 |
+
+| Observation             | Y           | log₁₀(|Y|) | Distance from [0.65, 0.68] |
+| ----------------------- | ----------- | ---------- | -------------------------- |
+| [0.6501, 0.6815] (init) | −3.6×10⁻³   | −2.4       | 0.000                      |
+| [0.7310, 0.7330] (init) | +7.7×10⁻¹⁶  | −15.1      | 0.096                      |
+| [0.7749, 0.7634] (W4)   | −1.6×10⁻²⁷  | −26.8      | 0.149                      |
+| [0.6834, 0.8611] (init) | +2.5×10⁻⁴⁰  | −39.6      | 0.183                      |
+| [0.0800, 0.2000] (W7)   | −3.1×10⁻¹¹⁶ | −115.5     | 0.746                      |
+
 
 The Spearman correlation between distance from [0.65, 0.68] and log₁₀(|Y|) is **r = −0.696, p = 0.002** — signal magnitude decays at approximately −128 orders of magnitude per unit distance. This is statistically significant and model-free.
 
@@ -1223,14 +1230,16 @@ When the GP surrogate fails due to extreme output dynamic range, **model-free sp
 
 **Best week of the entire challenge: 6 new all-time bests out of 8 functions.**
 
-| Fn | W8 result | Previous best | Improvement | Key driver |
-|----|-----------|--------------|-------------|-----------|
-| F1 | **1.6×10⁻⁷** | 4.4×10⁻⁵⁷ (W3) | +50 orders of magnitude | Hotspot hunt analysis (notebook 07) |
-| F4 | **+0.367** | +0.330 (W7) | +11% | Matérn 3/2 kernel + tight exploitation |
-| F5 | **1963.7** | 1482.4 (W7) | +32% | D2 increase from 0.84 → 0.91 |
-| F6 | **−0.246** | −0.296 (W6) | +17% | Flour increase, Eggs moderation |
-| F7 | **2.377** | 2.358 (W2) | +0.8% | RQ kernel + D5 reduction |
-| F8 | **9.830** | 9.800 (W5) | +0.3% | D3→0.004, D4→0.019 |
+
+| Fn  | W8 result    | Previous best  | Improvement             | Key driver                             |
+| --- | ------------ | -------------- | ----------------------- | -------------------------------------- |
+| F1  | **1.6×10⁻⁷** | 4.4×10⁻⁵⁷ (W3) | +50 orders of magnitude | Hotspot hunt analysis (notebook 07)    |
+| F4  | **+0.367**   | +0.330 (W7)    | +11%                    | Matérn 3/2 kernel + tight exploitation |
+| F5  | **1963.7**   | 1482.4 (W7)    | +32%                    | D2 increase from 0.84 → 0.91           |
+| F6  | **−0.246**   | −0.296 (W6)    | +17%                    | Flour increase, Eggs moderation        |
+| F7  | **2.377**    | 2.358 (W2)     | +0.8%                   | RQ kernel + D5 reduction               |
+| F8  | **9.830**    | 9.800 (W5)     | +0.3%                   | D3→0.004, D4→0.019                     |
+
 
 The between-weeks engineering work (kernel variants, F1 hotspot analysis) directly contributed to four of the six new bests (F1, F4, F7 via analysis; F5 via freed D2 constraint). F8's improvement came from enforcing hard constraints with reduced β.
 
@@ -1295,3 +1304,59 @@ A second gap is temporal: early queries were made with poorly tuned settings (β
 The most fundamental limitation is **the GP's inability to model the true function structure in high dimensions with small n.** For F8 (8D, n≈50), the GP has roughly 6 observations per dimension — far too few for a flexible non-parametric model to distinguish genuine gradients from noise. The ARD length-scale estimates depend critically on how many observations vary each dimension independently, and with correlated submissions (where multiple dimensions change simultaneously), the length-scales may attribute signal to the wrong dimension.
 
 This limitation manifests as overconfident predictions in undersampled regions. The GP returns a smooth posterior mean even in areas with no nearby data, which the acquisition function treats as reliable information. When I query those regions (as in F8's W10 submission), the actual output is often very different from the prediction. The mitigation — hard constraint enforcement — is effective but brittle: it depends entirely on me correctly identifying which regions are dangerous, based on my own interpretation of incomplete data. A more principled approach would be trust-region BO (TuRBO), which explicitly restricts the search to a local region where the GP has sufficient data density, but I have not implemented this.
+
+---
+
+## Week 10 Results
+
+### Function-by-function outcomes
+
+**F1** — [0.702, 0.721] → Y = 3.67×10⁻¹⁰. No improvement (W8 best: 1.64×10⁻⁷). The RBF kernel trial returned a value three orders of magnitude below the W8 Matérn result. The query was within the hotspot band but slightly further from the magnitude centre than W8. RBF's smoothness may actually be a disadvantage here — the radial decay is steep enough that Matérn's finite differentiability handles the gradient better.
+
+**F2** — [0.706, 0.934] → Y = 0.564. No improvement (W6 best: 0.726). Despite reducing β from 2.5 to 0.7, the stochastic nature of this function means any single query near the peak can underperform. Four of the last five submissions (W7–W10, excluding W8) returned Y < 0.60 despite being within 0.01 of the best-known coordinates. The noise dominates at this resolution.
+
+**F3** — [0.987, 0.970, 0.950] → Y = −0.237. No improvement (W5 best: −0.009). The radical upper-corner exploration bet failed decisively — the output is 26× worse than the W5 best. This confirms the optimum is near [0.44, 0.46, 0.50] and not at the boundary.
+
+**F4** — [0.447, 0.484, 0.357, 0.321] → Y = −1.426. No improvement (W8 best: +0.367). The return to the validated region did not recover the W8 result. P2=0.484 is notably higher than the W8 best (P2=0.431), and P4=0.321 is lower than W8 (P4=0.380). The basin is narrow enough that these deviations matter.
+
+**F5** — [0.332, 0.951, 0.985, 0.980] → **Y = 3448.2 ← new all-time best (+54%)**. The gradient continues: D2 pushed from 0.923 (W9) to 0.951, D3 from 0.961 to 0.985, D4 from 0.902 to 0.980. This is the **sixth consecutive improvement** (W5→W10), and the yield has more than tripled since the initial best (1088.9). Mean acquisition with RBF kernel produced every one of these improvements — the most consistent surrogate-strategy pairing in the entire challenge.
+
+**F6** — [0.453, 0.402, 0.745, 0.556, 0.099] → Y = −0.389. No improvement (W8 best: −0.246). The Matérn 3/2 kernel trial and Butter reduction (0.782→0.556) both failed. Butter=0.556 is far outside the confirmed [0.77, 0.83] range. This confirms the W8 constraint analysis was correct.
+
+**F7** — [0.103, 0.343, 0.353, 0.248, 0.380, 0.856] → Y = 1.814. No improvement (W9 best: 2.451). D6 was pushed from 0.724 to 0.856, D4 dropped from 0.315 to 0.248, and D5 increased from 0.291 to 0.380. The move distance (0.175) was too large for this tightly-peaked deterministic function. Every best result has D6 ∈ [0.707, 0.727]; D6=0.856 is well outside this band.
+
+**F8** — [0.089, 0.471, 0.007, 0.711, 0.689, 0.953, 0.479, 0.793] → Y = 9.166. No improvement (W9 best: 9.875). The deliberate constraint violation (D4=0.711, D5=0.689) confirmed that the hard constraints are correct: D4 must be near zero and D5 must be near 1.0. The 0.92-unit move produced a result 0.71 below the best — the GP's ARD conclusions about D4 and D5 are validated.
+
+### Week 10 Summary
+
+
+| Fn     | W10 result | Previous best  | Outcome    | Key takeaway                                                  |
+| ------ | ---------- | -------------- | ---------- | ------------------------------------------------------------- |
+| F1     | 3.67×10⁻¹⁰ | 1.64×10⁻⁷ (W8) | −3 orders  | RBF trial worse than Matérn for steep hotspot                 |
+| F2     | 0.564      | 0.726 (W6)     | −22%       | Noise dominates; β=0.7 insufficient to overcome stochasticity |
+| F3     | −0.237     | −0.009 (W5)    | −26×       | Upper corner has no second basin                              |
+| F4     | −1.426     | +0.367 (W8)    | Regression | P2/P4 deviations too large for narrow basin                   |
+| **F5** | **3448.2** | 2238.7 (W9)    | **+54%**   | **6th consecutive best; D2/D3/D4 → 1.0 confirmed**            |
+| F6     | −0.389     | −0.246 (W8)    | −58%       | Butter=0.556 and Matérn 3/2 both failed                       |
+| F7     | 1.814      | 2.451 (W9)     | −26%       | D6=0.856 far outside [0.707, 0.727] band                      |
+| F8     | 9.166      | 9.875 (W9)     | −7.2%      | D4=0.711, D5=0.689 validated hard constraints                 |
+
+
+**Final week pattern: exploitation works, exploration fails.** F5's continued exploitation of the confirmed gradient was the only success. All three deliberate exploratory bets (F3 corner, F6 kernel/Butter, F8 constraint test) failed. The lesson is consistent across the entire challenge: once a basin is identified, incremental perturbation outperforms speculative probes at these sample sizes.
+
+### End-of-challenge final standings
+
+
+| Fn  | Initial Best | Portal Best | Best Week | Total Improvement      |
+| --- | ------------ | ----------- | --------- | ---------------------- |
+| F1  | ≈7.7×10⁻¹⁶   | 1.64×10⁻⁷   | W8        | +9 orders of magnitude |
+| F2  | 0.611        | 0.726       | W6        | +19%                   |
+| F3  | −0.035       | −0.009      | W5        | +74%                   |
+| F4  | −4.026       | +0.367      | W8        | +109% (sign flip)      |
+| F5  | 1088.9       | **3448.2**  | **W10**   | **+217%**              |
+| F6  | −0.714       | −0.246      | W8        | +66%                   |
+| F7  | 1.365        | 2.451       | W9        | +80%                   |
+| F8  | 9.598        | 9.875       | W9        | +2.9%                  |
+
+
+All 8 functions beat their initial data best. F5 was the standout success: six consecutive improvements from W5 to W10, with the final yield more than tripling the initial best.
