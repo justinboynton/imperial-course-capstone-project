@@ -1233,3 +1233,65 @@ When the GP surrogate fails due to extreme output dynamic range, **model-free sp
 | F8 | **9.830** | 9.800 (W5) | +0.3% | D3→0.004, D4→0.019 |
 
 The between-weeks engineering work (kernel variants, F1 hotspot analysis) directly contributed to four of the six new bests (F1, F4, F7 via analysis; F5 via freed D2 constraint). F8's improvement came from enforcing hard constraints with reduced β.
+
+## Week 9 Critical Reflection and Scaling Law Parallels
+
+### Critical reflection on my approach after nine rounds
+
+Week 8 was the strongest week of the challengem, six new bests! This was due to the engineering investment rather than any single query decision. The kernel variant analysis (notebook 06) directly enabled F4 and F7 improvements, while the F1 hotspot hunt (notebook 07) finally broke through after seven wasted queries. F5's D2 breakout showed that "confirmed" constraints can be wrong: I held D2 near 0.84 for four weeks based on insufficient evidence, and releasing it to 0.915 produced a 32% jump.
+
+For W9, I submitted queries for all eight functions: two of them (F3 and F4) deviate significantly from the planned tight-exploitation strategy. F4's D1 dropped from 0.438 to 0.230, far outside the [0.35, 0.45] constraint that three consecutive improvements had validated. F3 moved D1 from 0.460 to 0.606; also a large exploration step. I am starting to get a feel for the scaling of parameters and should be using smaller perturbations here too. These deviations risk repeating the W6 pattern where constraint violations caused regressions. The remaining six functions followed the planned tight-exploitation or micro-perturbation approach and should be safer.
+
+### Scaling laws: diminishing returns or steady improvement?
+
+My optimisation observations mirror the power-law scaling observed in LLMs (Kaplan et al. 2020): each additional query improves the GP surrogate, but with diminishing marginal returns. F4's progression, W6: +0.136, W7: +0.330 (+143%), W8: +0.367 (+11%), shows the classic "elbow" where early queries add most value. F7 and F8 are in the flat tail: improvements of 0.8% and 0.3% respectively, requiring increasingly precise coordinate tuning. The parallel to LLM scaling is direct: just as doubling compute yields a predictable but shrinking loss reduction, each new query refines the GP posterior by a diminishing amount. My per-function strategy already reflects this: functions in the flat tail (F7, F8) receive pure exploitation, while functions still on the steep part of the curve (F5, possibly F1) justify bolder exploration.
+
+### Emergent behaviours and preparation
+
+F1's W8 breakthrough is the clearest analogue to LLM emergent behaviour: seven queries returned effectively zero, then a single model-free analysis produced a 50-order-of-magnitude jump. This was not a gradual improvement, it was a phase transition triggered by reframing the problem (log-space analysis of initial data rather than GP-based search). Similarly, F5's D2 breakout was emergent: the yield jumped 32% when I crossed an unseen threshold in D2 that the surrogate had never explored. I prepare for emergence by maintaining between-weeks analysis notebooks that question the current surrogate model rather than just tuning its parameters. From LLM research, we know that qualitative capabilities can appear discontinuously at scale: this tells me that I should periodically challenge my assumptions rather than only incrementally refining them.
+
+### Cost, robustness and performance trade-offs
+
+With one query per function per week, every submission carries opportunity cost. I treat this constraint the way a practitioner would treat expensive LLM inference: by investing disproportionately in offline analysis (zero-cost GP diagnostics, LOO R² comparison, kernel selection) and submitting only when a query has passed a cost-benefit check. The W6 failures taught me that robustness: enforcing hard constraints even when the acquisition function disagrees, is more important then raw performance when queries are irreversible. My current approach favours exploitation heavily (mean or low-ξ EI for five of eight functions) while reserving a small exploration budget only where analytical evidence supports it, such as F5's D2 push.
+
+### Balancing predictable optimisation with uneven emergent risk
+
+The F3 and F4 W9 submissions illustrate this challenge: F4 had three consecutive improvements via tight exploitation — the predictable path. The W9 submission abandons that path with D1 = 0.230, a speculative probe that could either reveal a second basin or waste the query entirely. In LLM terms, this is analogous to scaling a model past a known regime boundary: you might unlock a new capability, or you might hit a distribution shift that degrades performance. My mitigation strategy shouold be to limit these exploratory bets to at most two functions per week and to ensure the remaining submissions are near-guaranteed safe returns. However, I am also treating this as a learning exercise and sometimes failing is a good way to learn.
+
+---
+
+## Week 10 — Critical Reflection on Strategy, Transparency, Assumptions and Limitations
+
+### 1. What reasoning guided my W10 submissions? How did previous patterns influence decisions?
+
+W9 produced three new bests (F5: 2238.7, F7: 2.451, F8: 9.875) and five regressions. The clearest lesson: **tight exploitation along a confirmed gradient works; large exploratory jumps do not.** F5 improved for the fourth consecutive week by incrementally pushing D2/D3/D4 higher. F7 and F8 improved by micro-perturbation within their confirmed basins. Meanwhile F4's speculative D1=0.230 probe (violating the [0.35, 0.45] constraint) returned −3.21 — the worst result since W1 — exactly as predicted in my W9 risk assessment.
+
+This pattern directly shaped W10. For **F4**, I returned to the validated region ([0.447, 0.484, 0.357, 0.321]), reduced ξ from 0.01 to 0.002, and stayed with Matérn 3/2 — pure damage recovery. For **F5**, I continued the working gradient: D2 pushed to 0.951, D3 to 0.985, D4 to 0.980, all with unchanged RBF/mean settings. For **F2**, after three consecutive regressions from the W6 best (0.726), I dramatically reduced β from 2.5 to 0.7 — switching from exploration to near-pure exploitation. The heteroscedastic GP should now produce extremely tight queries near [0.706, 0.934]. For **F1**, I switched the kernel from Matérn 5/2 to RBF and reduced β to 0.5. The hotspot is steep and localised; RBF's infinite smoothness may capture the radial decay more faithfully than Matérn, and low β keeps the query near the W8 breakthrough at [0.691, 0.707].
+
+Three W10 submissions are deliberate exploratory bets. **F3** at [0.987, 0.970, 0.950] is a radical corner probe — every previous query was near [0.44, 0.46, 0.51], and after four weeks unable to beat the W5 result (−0.009), I chose to test whether the function landscape has a second basin near the upper boundary. **F6** switched kernel from Matérn 5/2 to Matérn 3/2 and acquisition from mean to EI (ξ=0.008), exploring whether the rougher kernel and Butter reduction (0.782→0.556) unlocks a new region. **F8** moved 0.92 units from W9 — the largest single-week jump — with D2 increasing from 0.220 to 0.471 and D4 from 0.016 to 0.711, both massively violating hard constraints. This is a high-risk test of whether the GP's ARD model has been over-constraining the search.
+
+### 2. Transparency and reproducibility
+
+My decision-making process is recorded at three levels. First, `capstone_history.json` stores every submission with acquisition function, β, ξ, and kernel metadata — a researcher can see exactly which settings produced each result. Second, `REFLECTIONS.md` records per-function reasoning each week, including what worked, what failed, and why. Third, `STRATEGY.md` maintains evolving hard dimension constraints with their evidence base, and `MODEL_CARD.md` describes each surrogate's configuration and changelog.
+
+To fully reproduce my strategy, a researcher would need: (a) the initial `.npy` data files, (b) the `capstone_history.json` with all portal submissions, (c) the `capstone_app.py` dashboard (which implements the GP, acquisition functions, and Y-transforms), and (d) the analysis notebooks (06–07) that justified kernel switches. The one gap is that manual constraint enforcement — clipping acquisition suggestions before submission — is not yet automated in code. A researcher reading only the app code would not see these clips; they are documented in reflections but not programmatically recorded.
+
+### 3. Key assumptions and their implications
+
+My most consequential assumption is **unimodality within the confirmed basin**. For functions like F4, F5, and F7, I assume there is a single peak near the current best and that the optimal strategy is to converge toward it with diminishing step sizes. This assumption is supported by the observation that tight perturbations consistently outperform large jumps — but it is impossible to verify without exhaustive sampling. If a function has a second, higher basin elsewhere in [0,1]ᵈ, my exploitation-heavy strategy would never find it.
+
+F4's W9 result demonstrates this risk directly: the D1=0.230 probe was an attempt to test the unimodality assumption, and it returned the worst score in eight weeks. But the failure doesn't prove unimodality — it proves that one specific alternative basin does not exist at D1=0.23. The true global optimum might still lie in an untested region. With only 10 queries (out of ~20-50 points including initial data), I have sampled a tiny fraction of the input space: F7's 10 queries in 6D cover a bounding box of 0.3% of the unit hypercube.
+
+### 4. Gaps and biases in the data
+
+The most significant bias is **spatial clustering around early successes**. My queries are heavily concentrated near coordinates that produced early improvements, creating a self-reinforcing cycle: the GP becomes most certain near previously queried points, so the acquisition function (especially low-ξ EI and mean) suggests nearby points, which further reinforces the cluster. F2's 10 queries have a bounding box covering only 5.5% of [0,1]² — essentially all queries are within a 0.70×0.08 rectangle in the upper-right corner.
+
+This clustering means I have effectively zero information about large regions of the input space. For F3, the upper corner [0.9, 0.9, 0.9] was never explored in nine weeks — the W10 submission is the first test of that region. For F8, dimensions D6 and D8 have been treated as irrelevant (based on GP ARD), but this conclusion rests on observations that never systematically varied them. The W10 submission for F8 (D6=0.953 vs typical 0.15-0.70) is an explicit test of this assumption.
+
+A second gap is temporal: early queries were made with poorly tuned settings (β=2.5, no Y-standardisation, no ARD) and their results contaminate the GP posterior. The GP treats all observations as equally informative, but my W1-W3 submissions were generated by a weaker pipeline. I cannot remove or down-weight them without implementing a time-weighted GP, which I have not done.
+
+### 5. One significant limitation
+
+The most fundamental limitation is **the GP's inability to model the true function structure in high dimensions with small n.** For F8 (8D, n≈50), the GP has roughly 6 observations per dimension — far too few for a flexible non-parametric model to distinguish genuine gradients from noise. The ARD length-scale estimates depend critically on how many observations vary each dimension independently, and with correlated submissions (where multiple dimensions change simultaneously), the length-scales may attribute signal to the wrong dimension.
+
+This limitation manifests as overconfident predictions in undersampled regions. The GP returns a smooth posterior mean even in areas with no nearby data, which the acquisition function treats as reliable information. When I query those regions (as in F8's W10 submission), the actual output is often very different from the prediction. The mitigation — hard constraint enforcement — is effective but brittle: it depends entirely on me correctly identifying which regions are dangerous, based on my own interpretation of incomplete data. A more principled approach would be trust-region BO (TuRBO), which explicitly restricts the search to a local region where the GP has sufficient data density, but I have not implemented this.

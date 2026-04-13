@@ -29,7 +29,7 @@ except ImportError:
 
 warnings.filterwarnings("ignore")
 
-ANTHROPIC_MODEL = "claude-sonnet-4-6"
+ANTHROPIC_MODEL = "claude-opus-4-6"
 
 # =============================================================================
 # PAGE CONFIG
@@ -574,12 +574,13 @@ def compute_acquisition(acq, mean, std, y_max, beta, xi):
     return mean
 
 def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_override=None,
-                 initial_data: dict | None = None):
+                 kernel_override=None, initial_data: dict | None = None):
     cfg = FUNCTION_CONFIG[fn_id]
     fn_h = history[fn_id]
-    acq  = acq_override  or cfg["acquisition"]
-    beta = beta_override or cfg["beta"]
-    xi   = xi_override   or cfg["xi"]
+    acq    = acq_override    if acq_override is not None    else cfg["acquisition"]
+    beta   = beta_override   if beta_override is not None   else cfg["beta"]
+    xi     = xi_override     if xi_override is not None     else cfg["xi"]
+    kernel = kernel_override if kernel_override is not None else cfg["kernel"]
 
     # --- Assemble training data: initial .npy observations + portal submissions ---
     X_parts, Y_parts = [], []
@@ -626,13 +627,13 @@ def suggest_next(fn_id, history, acq_override=None, beta_override=None, xi_overr
     # divide both the targets and alphas by an extra factor.
     if cfg.get("heteroscedastic") and len(Y_fit) >= 4:
         alpha_arr = compute_heteroscedastic_alpha(X, Y_fit)
-        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
                       normalize_y=False, alpha=alpha_arr)
     else:
         # Don't double-normalise: if a y_transform is active it already
         # standardises Y; only fall back to GP-internal normalisation when
         # no transform is in use.
-        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
                       normalize_y=(y_transform is None))
     gp.fit(X, Y_fit)
 
@@ -699,12 +700,13 @@ def make_history_chart(fn_id, color, fn_h, initial_data=None):
     fig.update_xaxes(tickvals=weeks, dtick=1)
     return fig
 
-def _prepare_gp(fn_id, history, initial_data):
+def _prepare_gp(fn_id, history, initial_data, kernel_override=None):
     """
     Fit a GP on combined initial + portal data for fn_id.
     Returns (gp, X_train, Y_train, best_x) or None if < 2 points.
     """
     cfg = FUNCTION_CONFIG[fn_id]
+    kernel = kernel_override if kernel_override is not None else cfg["kernel"]
     fn_h = history[fn_id]
     X_parts, Y_parts = [], []
     init = (initial_data or {}).get(fn_id)
@@ -736,23 +738,23 @@ def _prepare_gp(fn_id, history, initial_data):
         y_std = max(float(np.std(Y)), 1e-8)
         alpha_raw = compute_heteroscedastic_alpha(X, Y)
         alpha_norm = alpha_raw / (y_std ** 2)
-        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False),
+        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False),
                       normalize_y=True, alpha=alpha_norm)
     else:
-        gp = build_gp(cfg["kernel"], dims=cfg["dims"], ard=cfg.get("ard", False))
+        gp = build_gp(kernel, dims=cfg["dims"], ard=cfg.get("ard", False))
     gp.fit(X, Y)
     best_x = X[np.argmax(Y)].copy()
     return gp, X, Y, best_x
 
 
-def make_gp_slice_plot(fn_id, color, history, initial_data, suggestion=None):
+def make_gp_slice_plot(fn_id, color, history, initial_data, suggestion=None, kernel_override=None):
     """
     For each input dimension, plot a 1D slice through the GP posterior
     (all other dims fixed at the best-known point), showing mean ± 95% CI.
     Initial data and portal submissions are shown with distinct colours.
     An optional vertical line marks the current suggestion per dimension.
     """
-    result = _prepare_gp(fn_id, history, initial_data)
+    result = _prepare_gp(fn_id, history, initial_data, kernel_override=kernel_override)
     if result is None:
         return None
     gp, X_train, Y_train, best_x = result
@@ -861,12 +863,12 @@ def make_gp_slice_plot(fn_id, color, history, initial_data, suggestion=None):
     return fig
 
 
-def make_acq_comparison_plot(fn_id, history, initial_data, beta, xi):
+def make_acq_comparison_plot(fn_id, history, initial_data, beta, xi, kernel_override=None):
     """
     For each input dimension, show all four acquisition functions (UCB, EI, PI, Variance)
     normalised to [0,1] so their shapes can be compared side by side.
     """
-    result = _prepare_gp(fn_id, history, initial_data)
+    result = _prepare_gp(fn_id, history, initial_data, kernel_override=kernel_override)
     if result is None:
         return None
     gp, X_train, Y_train, best_x = result
@@ -1180,14 +1182,18 @@ def generate_reflection(fn_id, history):
     y_max = max(Y); best_idx = Y.index(y_max)
     last_y = Y[-1]; last_x = X[-1]
     improved = (last_y == y_max and len(Y) > 1)
-    acq = cfg["acquisition"]
+    last_meta = fn_h.get("meta", [{}])[-1] if fn_h.get("meta") else {}
+    acq = last_meta.get("acq", cfg["acquisition"])
+    beta = last_meta.get("beta", cfg["beta"])
+    xi = last_meta.get("xi", cfg["xi"])
+    kern = last_meta.get("kernel", cfg["kernel"])
     return f"""Week {fn_h['week']} Reflection — Function {fn_id}: {cfg['description']}
 
 This week I submitted input [{', '.join(f'{v:.4f}' for v in last_x)}] and received an output of {last_y:.4f}.
 
 {'This improved on the previous best, confirming the surrogate model prediction that this region was promising.' if improved else f"This did not improve on the current best of {y_max:.4f}. The observation has updated the GP posterior, reducing uncertainty in this region."}
 
-Acquisition function: {acq.upper()} (β={cfg['beta']}, ξ={cfg['xi']})
+Acquisition function: {acq.upper()} (β={beta}, ξ={xi}), Kernel: {kern}
 {cfg['notes']}
 
 Across {len(Y)} observation(s) to date, the best observed value is {y_max:.4f}
@@ -1208,6 +1214,8 @@ if "gp_info" not in st.session_state:
     st.session_state.gp_info = {}
 if "acq_overrides" not in st.session_state:
     st.session_state.acq_overrides = {}
+if "fn_settings" not in st.session_state:
+    st.session_state.fn_settings = {}
 if "query_draft" not in st.session_state:
     st.session_state.query_draft = {}
 if "initial_data" not in st.session_state:
@@ -1227,6 +1235,27 @@ if "ai_cache" not in st.session_state:
 
 history = st.session_state.history
 initial_data = st.session_state.initial_data
+
+KERNEL_OPTIONS = ["matern", "matern32", "rq", "rbf"]
+KERNEL_LABELS  = {"matern": "Matérn 5/2", "matern32": "Matérn 3/2", "rq": "Rational Quadratic", "rbf": "RBF"}
+
+
+def get_fn_setting(fn_id: int, key: str):
+    """Read a per-function user override, falling back to FUNCTION_CONFIG."""
+    overrides = st.session_state.fn_settings.get(fn_id, {})
+    if key in overrides:
+        return overrides[key]
+    if key == "acq":
+        return st.session_state.acq_overrides.get(fn_id, FUNCTION_CONFIG[fn_id]["acquisition"])
+    return FUNCTION_CONFIG[fn_id].get(key, {"beta": 1.96, "xi": 0.05, "kernel": "matern"}.get(key))
+
+
+def set_fn_setting(fn_id: int, key: str, value):
+    """Store a per-function user override."""
+    if fn_id not in st.session_state.fn_settings:
+        st.session_state.fn_settings[fn_id] = {}
+    st.session_state.fn_settings[fn_id][key] = value
+
 
 # Resolve Anthropic API key: secrets → env → None (prompts user in UI)
 def _get_api_key() -> str | None:
@@ -1279,10 +1308,13 @@ with left_col:
         color = FN_COLORS[fn_id - 1]
         best = f"{max(fn_h['Y']):.4f}" if fn_h["Y"] else "—"
         is_active = st.session_state.active_fn == fn_id
-        acq = st.session_state.acq_overrides.get(fn_id, cfg["acquisition"]).upper()
+        acq_display = get_fn_setting(fn_id, "acq").upper()
+        beta_display = get_fn_setting(fn_id, "beta")
+        xi_display = get_fn_setting(fn_id, "xi")
+        kernel_display = KERNEL_LABELS.get(get_fn_setting(fn_id, "kernel"), get_fn_setting(fn_id, "kernel"))
         _pill_map = {"ucb": "pill-ucb", "ei": "pill-ei", "pi": "pill-pi",
                      "variance": "pill-var", "mean": "pill-mean"}
-        pill_cls = _pill_map.get(acq.lower(), "pill-var")
+        pill_cls = _pill_map.get(acq_display.lower(), "pill-var")
 
         card_cls = "fn-card fn-card-active" if is_active else "fn-card"
         st.markdown(f"""
@@ -1309,9 +1341,10 @@ with left_col:
               <div class="stat-lbl">Best</div>
             </div>
           </div>
-          <span class="pill {pill_cls}">{acq}</span>
-          <span class="pill" style="background:rgba(124,58,237,0.15);color:#a78bfa">β={cfg['beta']}</span>
-          <span class="pill" style="background:rgba(16,185,129,0.15);color:#10b981">ξ={cfg['xi']}</span>
+          <span class="pill {pill_cls}">{acq_display}</span>
+          <span class="pill" style="background:rgba(124,58,237,0.15);color:#a78bfa">β={beta_display}</span>
+          <span class="pill" style="background:rgba(16,185,129,0.15);color:#10b981">ξ={xi_display}</span>
+          <span class="pill" style="background:rgba(0,212,255,0.10);color:#38bdf8">{kernel_display}</span>
         </div>
         """, unsafe_allow_html=True)
         if st.button(f"Select F{fn_id}", key=f"sel_{fn_id}", use_container_width=True,
@@ -1381,23 +1414,37 @@ with right_col:
             )
 
         with q_right:
+            st.markdown("**GP Kernel**")
+            _cur_kernel = get_fn_setting(fn_id, "kernel")
+            kernel_choice = st.selectbox(
+                "Kernel", KERNEL_OPTIONS,
+                index=KERNEL_OPTIONS.index(_cur_kernel) if _cur_kernel in KERNEL_OPTIONS else 0,
+                format_func=lambda k: KERNEL_LABELS.get(k, k),
+                key=f"kernel_{fn_id}",
+                label_visibility="collapsed",
+            )
+            set_fn_setting(fn_id, "kernel", kernel_choice)
+
             st.markdown("**Acquisition Function**")
             ACQ_OPTIONS = ["ucb", "ei", "pi", "variance", "mean"]
+            _cur_acq = get_fn_setting(fn_id, "acq")
             acq_choice = st.selectbox(
                 "Method", ACQ_OPTIONS,
-                index=ACQ_OPTIONS.index(
-                    st.session_state.acq_overrides.get(fn_id, cfg["acquisition"])
-                    if st.session_state.acq_overrides.get(fn_id, cfg["acquisition"]) in ACQ_OPTIONS
-                    else cfg["acquisition"]
-                ),
+                index=ACQ_OPTIONS.index(_cur_acq) if _cur_acq in ACQ_OPTIONS else 0,
                 key=f"acq_{fn_id}",
                 label_visibility="collapsed",
                 help="mean = pure exploitation (argmax GP posterior mean). Best for unimodal functions once the peak region is found.",
             )
+            set_fn_setting(fn_id, "acq", acq_choice)
             st.session_state.acq_overrides[fn_id] = acq_choice
 
-            beta_val = st.slider("β (UCB exploration)", 0.5, 5.0, cfg["beta"], 0.1, key=f"beta_{fn_id}", format="%0.2f")
-            xi_val   = st.slider("ξ (EI/PI exploration)", 0.00, 0.25, cfg["xi"], 0.001, key=f"xi_{fn_id}", format="%0.3f")
+            _cur_beta = get_fn_setting(fn_id, "beta")
+            beta_val = st.slider("β (UCB exploration)", 0.5, 5.0, float(_cur_beta), 0.1, key=f"beta_{fn_id}", format="%0.2f")
+            set_fn_setting(fn_id, "beta", beta_val)
+
+            _cur_xi = get_fn_setting(fn_id, "xi")
+            xi_val = st.slider("ξ (EI/PI exploration)", 0.00, 0.25, float(_cur_xi), 0.001, key=f"xi_{fn_id}", format="%0.3f")
+            set_fn_setting(fn_id, "xi", xi_val)
 
             st.markdown("")
             c1, c2 = st.columns(2)
@@ -1417,7 +1464,7 @@ with right_col:
                         "acq": acq_choice,
                         "beta": beta_val,
                         "xi": xi_val,
-                        "kernel": cfg["kernel"],
+                        "kernel": kernel_choice,
                     })
                     st.session_state.ai_cache.pop(fn_id, None)
                     save_history(history)
@@ -1426,6 +1473,7 @@ with right_col:
                         acq_override=acq_choice,
                         beta_override=beta_val,
                         xi_override=xi_val,
+                        kernel_override=kernel_choice,
                         initial_data=initial_data,
                     )
                     st.session_state.suggestion[fn_id] = suggestion
@@ -1433,12 +1481,13 @@ with right_col:
                     st.session_state.pop(f"sug_applied_{fn_id}", None)
                     st.rerun()
             with c2:
-                if st.button("🔍  Regenerate Week 1 Query", key=f"w1_{fn_id}", use_container_width=True):
+                if st.button("🔍  Regenerate Query", key=f"w1_{fn_id}", use_container_width=True):
                     suggestion, gp_mean, gp_std = suggest_next(
                         fn_id, history,
                         acq_override=acq_choice,
                         beta_override=beta_val,
                         xi_override=xi_val,
+                        kernel_override=kernel_choice,
                         initial_data=initial_data,
                     )
                     st.session_state.suggestion[fn_id] = suggestion
@@ -1497,7 +1546,8 @@ with right_col:
                     mi = fn_meta[i] if i < len(fn_meta) else {}
                     meta_str = ""
                     if mi:
-                        meta_str = f"{mi.get('acq','?').upper()} β={mi.get('beta','?')} ξ={mi.get('xi','?')}"
+                        k_short = KERNEL_LABELS.get(mi.get('kernel',''), mi.get('kernel','?'))
+                        meta_str = f"{mi.get('acq','?').upper()} β={mi.get('beta','?')} ξ={mi.get('xi','?')} {k_short}"
                     rows_html += f"""
                     <div class="obs-row">
                       <div class="obs-week">W{i+1}</div>
@@ -1581,7 +1631,8 @@ with right_col:
         st.markdown('<div class="section-label">GP Posterior — Mean & 95% Confidence Interval</div>', unsafe_allow_html=True)
         st.caption("1D slices through the GP: all other dimensions held fixed at the best-known point.")
         fig_gp = make_gp_slice_plot(fn_id, color, history, initial_data,
-                                    suggestion=st.session_state.suggestion.get(fn_id))
+                                    suggestion=st.session_state.suggestion.get(fn_id),
+                                    kernel_override=get_fn_setting(fn_id, "kernel"))
         if fig_gp:
             st.plotly_chart(fig_gp, use_container_width=True, config={"displayModeBar": False})
         else:
@@ -1596,8 +1647,10 @@ with right_col:
         st.markdown("")
         st.markdown('<div class="section-label">Acquisition Function Comparison</div>', unsafe_allow_html=True)
         st.caption("All four acquisition functions normalised to [0, 1] — shows where each would rank as the next best query along each dimension.")
-        _beta_viz = st.session_state.acq_overrides.get(fn_id) and cfg["beta"] or cfg["beta"]
-        fig_acq = make_acq_comparison_plot(fn_id, history, initial_data, cfg["beta"], cfg["xi"])
+        fig_acq = make_acq_comparison_plot(fn_id, history, initial_data,
+                                          get_fn_setting(fn_id, "beta"),
+                                          get_fn_setting(fn_id, "xi"),
+                                          kernel_override=get_fn_setting(fn_id, "kernel"))
         if fig_acq:
             st.plotly_chart(fig_acq, use_container_width=True, config={"displayModeBar": False})
         else:
@@ -1807,7 +1860,7 @@ with right_col:
                 acq_str = mi.get("acq", cfg["acquisition"]).upper()
                 beta_str = mi.get("beta", cfg["beta"])
                 xi_str   = mi.get("xi",   cfg["xi"])
-                kernel_str = mi.get("kernel", cfg["kernel"])
+                kernel_str = KERNEL_LABELS.get(mi.get("kernel", cfg["kernel"]), mi.get("kernel", cfg["kernel"]))
                 vs_init = ""
                 if init_best is not None:
                     diff = y_val - init_best
