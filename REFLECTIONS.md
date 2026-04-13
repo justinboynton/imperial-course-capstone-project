@@ -1110,3 +1110,126 @@ The sign is uncertain (one neighbour is positive, one negative), but even a nega
 ### Methodological lesson
 
 When the GP surrogate fails due to extreme output dynamic range, **model-free spatial statistics** (distance-based correlations, radial profiles) and **treating the initial data as a designed experiment** are more informative than any parametric model. The challenge designers placed the initial points to reveal the landscape structure — reading that signal should have been the first step, not the last.
+
+---
+
+## Week 8 — 2026-05-01
+
+### Function 1 — 2D Contamination Field
+
+**Submitted:** [0.691, 0.707] → **Y = 1.643×10⁻⁷ ← breakthrough**
+
+**Acquisition:** Model-free — midpoint of the two highest-magnitude initial data points, identified by notebook 07 analysis.
+
+**Did it improve on the best?** **Yes — by 50 orders of magnitude.** Previous portal best was 4.4×10⁻⁵⁷ (W3). W8's result is 1.6×10⁻⁷ — still small but the first non-negligible positive value ever recorded. The radial decay prediction (log|Y| ≈ −16 at d=0.05) was conservative; the actual result (log|Y| = −6.8) is 9 orders better than predicted, suggesting the hotspot is steeper than the linear radial fit assumed.
+
+**What did it teach us?** The hotspot hunt analysis was correct. The signal is centred near [0.65–0.73, 0.68–0.73] exactly as predicted by the Spearman correlation analysis. Seven wasted queries in the wrong region were reversed by a single model-free analysis of the initial data. The function now has a genuine signal to work with — the GP can finally distinguish this point from zero.
+
+**Strategy for W9:** Tighten toward the magnitude peak. The initial data point [0.6501, 0.6815] had |Y| = 3.6×10⁻³ (negative) — 4 orders of magnitude larger. The positive peak likely lies between [0.691, 0.707] (positive, 10⁻⁷) and [0.6501, 0.6815] (negative, 10⁻³). Probe [0.670, 0.695] — halfway, slightly toward the negative centre, gambling on crossing into stronger positive territory.
+
+---
+
+### Function 2 — 2D Noisy Log-Likelihood
+
+**Submitted:** [0.6991, 0.9266] → **Y = 0.7150**
+
+**Acquisition:** UCB β=2.5, Matérn 5/2, ARD, standardised Y, heteroscedastic GP
+
+**Did it improve on the best?** No. W6 (0.726) remains the best. W8 (0.715) is the second-best ever — confirming the X₂ ≈ 0.93 region is optimal. The W7 regression (0.585) was a noise outlier; W8 recovered.
+
+**Strategy for W9:** The peak is well-characterised at X₁ ≈ 0.699, X₂ ∈ [0.926, 0.932]. Stay tight.
+
+---
+
+### Function 3 — 3D Drug Compounds
+
+**Submitted:** [0.4601, 0.5177, 0.5097] → **Y = −0.01725**
+
+**Acquisition:** EI ξ=0.02, Matérn 5/2, standardised Y
+
+**Did it improve on the best?** No. W5 (−0.009) remains the best. W8 (−0.017) is the third straight regression from the W5 peak. The function appears to have a very narrow optimum.
+
+**Strategy for W9:** Return closer to W5 exact coordinates [0.439, 0.461, 0.503].
+
+---
+
+### Function 4 — 4D Warehouse ML Hyperparameters
+
+**Submitted:** [0.4384, 0.4311, 0.3550, 0.3801] → **Y = +0.3674 ← new all-time best**
+
+**Acquisition:** EI ξ=0.01, Matérn 3/2 ARD, standardised Y
+
+**Did it improve on the best?** **Yes — third consecutive improvement.** W6: +0.136, W7: +0.330, W8: +0.367. The Matérn 3/2 kernel switch (from notebook 06) is directly validated — three consecutive new bests since the change. The coordinates continue to converge: all four dimensions are now tightly clustered in [0.35, 0.44].
+
+**Hyperparameter tuning insight:** The convergence path W6→W7→W8 shows diminishing step sizes with each improvement — consistent with gradient descent approaching a stationary point. The "all moderate" optimum is confirmed.
+
+**Strategy for W9:** Continue tight exploitation near [0.438, 0.431, 0.355, 0.380].
+
+---
+
+### Function 5 — 4D Chemical Yield
+
+**Submitted:** [0.3506, 0.9146, 0.9581, 0.8742] → **Y = 1963.67 ← new all-time best**
+
+**Acquisition:** EI ξ=0.01, RBF, standardised Y
+
+**Did it improve on the best?** **Yes — massive improvement.** W7 (1482.4) → W8 (1963.7), a 32% jump. The key change: D2 increased from 0.842 to 0.915 — a 0.073 shift that produced +481 units. D2 was previously held near 0.84 for four weeks; releasing it toward higher values unlocked a much larger yield.
+
+**What did it teach us?** D2 (Chemical 2) was under-optimised. Previous constraints held it in [0.83, 0.85] based on early data, but the true peak has D2 > 0.90. D3 and D4 are confirmed at their high values (0.958 and 0.874). D1 remains near 0.35.
+
+**Strategy for W9:** Push D2 higher — [0.350, 0.923, 0.961, 0.880]. D2 may still have room to increase.
+
+---
+
+### Function 6 — 5D Cake Recipe
+
+**Submitted:** [0.4722, 0.4072, 0.7351, 0.7821, 0.0178] → **Y = −0.2462 ← new all-time best**
+
+**Acquisition:** Mean (GP posterior mean), Matérn 5/2, standardised Y
+
+**Did it improve on the best?** **Yes.** W6 (−0.296) → W7 regression (−0.452) → W8 (−0.246). The W7 regression was caused by Eggs increasing too aggressively (0.821 vs 0.766 in W6). W8 pulled Eggs back to 0.735 and increased Flour to 0.472 — the new best.
+
+**Strategy for W9:** The optimal recipe region is emerging: Flour ≈ 0.47, Sugar ≈ 0.41, Eggs ≈ 0.74, Butter ≈ 0.78, Milk < 0.02.
+
+---
+
+### Function 7 — 6D GBM Hyperparameters
+
+**Submitted:** [0.0726, 0.3579, 0.3409, 0.3217, 0.2719, 0.7266] → **Y = 2.3766 ← new all-time best**
+
+**Acquisition:** EI ξ=0.005, Rational Quadratic, standardised Y
+
+**Did it improve on the best?** **Yes — after six weeks.** W2 (2.358) → W8 (2.377). The improvement is small (+0.019) but significant for a deterministic function. The RQ kernel switch (from notebook 06) combined with tight exploitation produced the first improvement over the W2 result.
+
+**Key changes vs W2:** D1 reduced from 0.095 to 0.073 (−0.022), D5 reduced from 0.362 to 0.272 (−0.090). The D5 reduction is the most notable — the W2/W5 value of 0.362 was not at the optimum.
+
+**Strategy for W9:** Micro-perturb D5 further — test [0.073, 0.358, 0.341, 0.322, 0.260, 0.727].
+
+---
+
+### Function 8 — 8D ML Hyperparameters
+
+**Submitted:** [0.0942, 0.2749, 0.0038, 0.0186, 0.9424, 0.6972, 0.3286, 0.8610] → **Y = 9.8303 ← new all-time best**
+
+**Acquisition:** UCB β=1.5, Matérn 5/2, ARD, standardised Y
+
+**Did it improve on the best?** **Yes.** W5 (9.800) → W8 (9.830). The improvement came from pushing D3 to 0.004 (was 0.025 in W5) and D4 to 0.019 (was 0.032). Both critical dimensions moved closer to zero, confirming the constraint direction. D6 jumped to 0.697 (was 0.204 in W5) — confirming D6 is truly irrelevant, as GP ARD predicted.
+
+**Strategy for W9:** Continue pushing D3→0 and D4→0 — [0.080, 0.220, 0.003, 0.015, 0.965, 0.500, 0.326, 0.871].
+
+---
+
+### Week 8 Summary
+
+**Best week of the entire challenge: 6 new all-time bests out of 8 functions.**
+
+| Fn | W8 result | Previous best | Improvement | Key driver |
+|----|-----------|--------------|-------------|-----------|
+| F1 | **1.6×10⁻⁷** | 4.4×10⁻⁵⁷ (W3) | +50 orders of magnitude | Hotspot hunt analysis (notebook 07) |
+| F4 | **+0.367** | +0.330 (W7) | +11% | Matérn 3/2 kernel + tight exploitation |
+| F5 | **1963.7** | 1482.4 (W7) | +32% | D2 increase from 0.84 → 0.91 |
+| F6 | **−0.246** | −0.296 (W6) | +17% | Flour increase, Eggs moderation |
+| F7 | **2.377** | 2.358 (W2) | +0.8% | RQ kernel + D5 reduction |
+| F8 | **9.830** | 9.800 (W5) | +0.3% | D3→0.004, D4→0.019 |
+
+The between-weeks engineering work (kernel variants, F1 hotspot analysis) directly contributed to four of the six new bests (F1, F4, F7 via analysis; F5 via freed D2 constraint). F8's improvement came from enforcing hard constraints with reduced β.

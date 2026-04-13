@@ -54,14 +54,14 @@ Each function returns a **single scalar value** — a real number representing t
 
 | Function | Output range (observed) | Sign | Domain context |
 |----------|------------------------|------|----------------|
-| F1 | ≈ 0 | Near-zero | Contamination signal — extremely localised; hotspot not yet found |
+| F1 | [−3.6×10⁻³, 1.6×10⁻⁷] | Near-zero | Contamination signal — hotspot located in W8 via log-space analysis |
 | F2 | [−0.066, 0.726] | Mixed | Noisy log-likelihood |
 | F3 | [−0.399, −0.009] | Negative | Negative side-effect count; maximise toward 0 |
-| F4 | [−32.6, +0.330] | Mixed | Difference from baseline; second consecutive positive result in W7 |
-| F5 | [50.4, 1482.4] | Positive | Chemical yield — unimodal, one clear peak |
-| F6 | [−2.57, −0.296] | Negative | Negative penalty score; maximise toward 0 |
-| F7 | [0.003, 2.358] | Positive | ML model performance score |
-| F8 | [5.59, 9.800] | Positive | Validation accuracy (scaled) |
+| F4 | [−32.6, +0.367] | Mixed | Difference from baseline; third consecutive positive result in W8 |
+| F5 | [50.4, 1963.7] | Positive | Chemical yield — unimodal, D2 breakout in W8 |
+| F6 | [−2.57, −0.246] | Negative | Negative penalty score; maximise toward 0 |
+| F7 | [0.003, 2.377] | Positive | ML model performance score |
+| F8 | [5.59, 9.830] | Positive | Validation accuracy (scaled) |
 
 ---
 
@@ -144,16 +144,16 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 
 | Fn | Dims | Description | Initial Best Y | Portal Best Y | Overall Best Y | Best Week |
 |----|------|-------------|---------------|--------------|----------------|-----------|
-| 1  | 2D   | Contamination/radiation field | ≈0.000 | ≈0.000 | ≈0.000 | — |
+| 1  | 2D   | Contamination/radiation field | ≈0.000 | **1.6×10⁻⁷** | 1.6×10⁻⁷ | W8 ↑ |
 | 2  | 2D   | Noisy log-likelihood | 0.6112 | **0.7260** | 0.7260 | W6 |
 | 3  | 3D   | Drug compound combinations | −0.0348 | **−0.0090** | −0.0090 | W5 |
-| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **+0.3298** | +0.3298 | W7 ↑ |
-| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1482.41** | 1482.41 | W7 ↑ |
-| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.2956** | −0.2956 | W6 |
-| 7  | 6D   | GBM hyperparameter tuning | 1.3650 | **2.3576** | 2.3576 | W2 |
-| 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8001** | 9.8001 | W5 |
+| 4  | 4D   | Warehouse ML hyperparameters | −4.0255 | **+0.3674** | +0.3674 | W8 ↑ |
+| 5  | 4D   | Chemical yield (unimodal) | 1088.86 | **1963.67** | 1963.67 | W8 ↑ |
+| 6  | 5D   | Cake recipe (negative penalty) | −0.7143 | **−0.2462** | −0.2462 | W8 ↑ |
+| 7  | 6D   | GBM hyperparameter tuning | 1.3650 | **2.3766** | 2.3766 | W8 ↑ |
+| 8  | 8D   | Complex ML hyperparameters | 9.5985 | **9.8303** | 9.8303 | W8 ↑ |
 
-**7 of 8 functions have beaten the initial data best. F4 continued its positive streak in W7 (+0.330). F5 set a new all-time best (1482.4). F1 remains the only unsolved function — hotspot analysis (notebook 07) identified a candidate for W8.**
+**All 8 functions have now beaten the initial data best — including F1, where the hotspot hunt analysis (notebook 07) delivered a 50-order-of-magnitude breakthrough. W8 was the best week of the challenge: 6 new all-time bests (F1, F4, F5, F6, F7, F8). F5's D2 breakout (+32%) was the largest single-week improvement.**
 
 ---
 
@@ -210,6 +210,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | 5 | 2026-04-10 | All 8 functions | **Best week to date: 4 new all-time bests** — F3 (−0.0090), F5 (1412.6), F6 (−0.341), F8 (9.800). F7 reproduced W2 result exactly, confirming it is deterministic. F2 regression (0.513) reveals X₂ ≈ 0.96 sensitivity. F4 partial recovery but W2 best still unchallenged. F1: 5 consecutive zeros — lower-left also fails. |
 | 6 | 2026-04-17 | All 8 functions | **3 new all-time bests** — F2 (0.726), F4 (+0.136, first positive ever), F6 (−0.296). F3 stable near-best (−0.013). F7 D1 perturbation test (2.189) confirms D1=0.095 is optimal. F5 regression (1223) — D4 violated. F8 regression (9.189) — UCB pushed D1/D4 outside hard constraints. F1: sixth consecutive zero; cluster abandoned. |
 | 7 | 2026-04-24 | All 8 functions | **2 new all-time bests** — F4 (+0.330, Matérn 3/2 kernel switch validated) and F5 (1482.4, new peak). F7 near-perfect reproduction (2.347 vs 2.358 best, RQ kernel). F8 recovered (9.775, hard constraints enforced). F2 regression (0.585). F6 regression (−0.452). F3 slight regression (−0.014). F1: W7 lower-left probe failed (−3.1×10⁻¹¹⁶); hotspot hunt analysis (notebook 07) identifies [0.691, 0.707] as W8 candidate. Between-weeks: kernel variants analysis switched F4 to Matérn 3/2 and F7 to Rational Quadratic; NGBoost rejected for all functions. |
+| 8 | 2026-05-01 | All 8 functions | **Best week of the challenge: 6 new all-time bests.** F1 breakthrough (1.6×10⁻⁷) — hotspot hunt analysis validated, +50 orders of magnitude. F4 third consecutive improvement (+0.367, Matérn 3/2 confirmed). F5 massive D2 breakout (1963.7, +32%). F6 recovered (−0.246, Flour/Eggs rebalanced). F7 first improvement over W2 in six weeks (2.377, RQ kernel + D5 reduction). F8 new best (9.830, D3/D4 pushed toward zero). F2 near-best (0.715). F3 drifting (−0.017). All 8 functions now beat initial data best. |
 
 ---
 
@@ -225,6 +226,8 @@ The following improvements have been made to the surrogate pipeline since Week 1
 | Kernel variant optimisation (LOO R² comparison) | Between W6–W7 | F4 → Matérn 3/2, F7 → Rational Quadratic |
 | NGBoost evaluation and rejection | Between W6–W7 | F4, F7, F8 (rejected: coverage 2–25%) |
 | F1 log-space hotspot analysis | Between W6–W7 | F1 (radial decay identified; candidate [0.691, 0.707]) |
+| F1 hotspot validation | W8 | F1 (W8 query at [0.691, 0.707] → 1.6×10⁻⁷, +50 orders of magnitude) |
+| D2 constraint release for F5 | W8 | F5 (D2 from 0.84→0.91 → +32% yield) |
 
 ---
 

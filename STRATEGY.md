@@ -154,20 +154,48 @@ At this stage of the search (6–7 queries submitted, n = 30–50 including init
 
 ---
 
+## Week 7 → Week 8 Strategic Shift
+
+### What happened in week 8
+**Best week of the entire challenge: 6 new all-time bests** (F1, F4, F5, F6, F7, F8). Only F2 and F3 did not set new bests.
+
+The dominant pattern in the successes: **engineering-driven improvement, not just GP exploitation.** Four of the six bests were directly enabled by between-weeks analysis:
+- F1: model-free hotspot hunt (notebook 07) identified [0.691, 0.707] → Y jumped by 50 orders of magnitude
+- F4: Matérn 3/2 kernel switch (notebook 06) → third consecutive improvement
+- F7: Rational Quadratic kernel (notebook 06) + tight ξ → first improvement over W2 after six weeks
+- F5: releasing the D2 constraint from [0.83, 0.85] to 0.91 → 32% yield jump
+
+F8's improvement came from reduced β (1.5 vs 2.5) enforcing hard dimension constraints, and F6 recovered from the W7 regression via GP mean acquisition.
+
+### Direction for week 9
+
+| Fn | All-time best | W8 result | W8 outcome | W9 action |
+|----|--------------|-----------|------------|-----------|
+| F1 | **1.6×10⁻⁷ (W8 NEW)** | 1.6×10⁻⁷ ↑ | Breakthrough | [0.670, 0.695] — toward magnitude centre |
+| F2 | 0.726 (W6) | 0.715 | Near-best | [0.699, 0.932] — stay tight |
+| F3 | −0.009 (W5) | −0.017 | Drifting | Return to W5 exact: [0.439, 0.461, 0.503] |
+| F4 | **+0.367 (W8 NEW)** | +0.367 ↑ | 3rd consecutive | [0.438, 0.431, 0.355, 0.380] — stay tight |
+| F5 | **1963.7 (W8 NEW)** | 1963.7 ↑ | Massive jump | [0.350, 0.923, 0.961, 0.880] — push D2 higher |
+| F6 | **−0.246 (W8 NEW)** | −0.246 ↑ | Recovered | [0.475, 0.410, 0.740, 0.785, 0.015] — stay tight |
+| F7 | **2.377 (W8 NEW)** | 2.377 ↑ | 6-week plateau broken | [0.073, 0.358, 0.341, 0.322, 0.260, 0.727] — test D5 lower |
+| F8 | **9.830 (W8 NEW)** | 9.830 ↑ | D3/D4→0 confirmed | [0.080, 0.220, 0.003, 0.015, 0.965, 0.500, 0.326, 0.871] |
+
+---
+
 ## Hard Dimension Constraints (Evidence-Based)
 
 These constraints are derived from multiple weeks of observation and should not be violated without strong analytical justification:
 
 | Fn | Constraint | Evidence |
 |----|------------|----------|
-| F1 | X₁ ∈ [0.55, 0.75]; X₂ ∈ [0.60, 0.75] | Radial decay centred at [0.65, 0.68]; r=−0.696 p=0.002; all high-magnitude points in this band |
-| F2 | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.91, 0.96] | All high-Y results within this band; W6 best at [0.699, 0.932] |
-| F3 | A ∈ [0.43, 0.46]; B ∈ [0.46, 0.50]; C ∈ [0.47, 0.52] | W5/W6 top-2 both within this range |
-| F4 | All dims ∈ [0.35, 0.48] | W6 breakthrough at all-moderate settings; any extreme produces negative Y |
-| F5 | C1 ∈ [0.30, 0.36]; C4 > 0.87 | C4=0.811 (W6) → 1223 vs C4=0.872 (W5) → 1412 |
-| F6 | Butter ∈ [0.77, 0.80]; Eggs > 0.75; Milk < 0.05 | W6 best: Eggs=0.766, Milk=0.023 |
-| F7 | D1 ∈ [0.085, 0.105]; D2 ∈ [0.355, 0.375]; D6 > 0.70 | D1=0.013 (W6) → 2.189 vs D1=0.095 (W2/W5) → 2.357 |
-| F8 | D1 < 0.18; D3 < 0.04; D4 < 0.05; D5 > 0.95 | D1=0.471 (W6) → 9.189; W5: D1=0.136, D3=0.025 → 9.800 |
+| F1 | X₁ ∈ [0.65, 0.72]; X₂ ∈ [0.68, 0.73] | W8 at [0.691, 0.707] → 1.6×10⁻⁷; radial decay analysis confirms hotspot centre near [0.65, 0.68] |
+| F2 | X₁ ∈ [0.69, 0.71]; X₂ ∈ [0.92, 0.94] | W6/W8 top-2 at X₂=0.932/0.927; W7 regression at X₂=0.921 |
+| F3 | A ∈ [0.43, 0.46]; B ∈ [0.46, 0.52]; C ∈ [0.47, 0.52] | W5 best at [0.439, 0.461, 0.503] |
+| F4 | All dims ∈ [0.35, 0.45] | Three consecutive bests W6–W8 all within this range |
+| F5 | C1 ∈ [0.33, 0.36]; C2 > 0.90; C3 > 0.95; C4 > 0.87 | W8 best at D2=0.915 (+32% vs D2=0.842 in W7) |
+| F6 | Flour ∈ [0.40, 0.50]; Eggs ∈ [0.73, 0.77]; Butter ∈ [0.77, 0.83]; Milk < 0.02 | W8 best at [0.472, 0.407, 0.735, 0.782, 0.018] |
+| F7 | D1 ∈ [0.07, 0.10]; D2 ∈ [0.355, 0.370]; D5 ∈ [0.26, 0.37]; D6 > 0.72 | W8 best at D1=0.073, D5=0.272 — both lower than W2 |
+| F8 | D1 < 0.10; D3 < 0.005; D4 < 0.02; D5 > 0.94 | W8 best at D3=0.004, D4=0.019 — push both toward zero |
 
 ---
 
@@ -194,3 +222,6 @@ These constraints are derived from multiple weeks of observation and should not 
 | 6–7 | **NGBoost 95% PI coverage is dangerously under-calibrated at small n.** Coverage of 2–25% means the model's uncertainty is meaningless for acquisition. Tree-based probabilistic surrogates require n ≥ 100 to be viable. |
 | 6–7 | **When the GP fails, go model-free.** F1's 183-order dynamic range defeats any kernel-based model. Spearman rank correlation on distance (r=−0.696, p=0.002) revealed the hotspot structure that the GP could not detect. |
 | 6–7 | **Initial data is a designed experiment — read it first.** The challenge designers placed F1's two highest-magnitude points near [0.65–0.73, 0.68–0.73]. Recognising this as a deliberate bracket of the hotspot should have been the week 1 strategy, not the week 7 one. |
+| 8 | **Between-weeks analysis is the highest-ROI activity.** 4 of 6 new bests in W8 were directly enabled by between-weeks engineering (kernel variants, F1 hotspot hunt). Investing time in surrogate diagnostics pays off more than individual query tuning. |
+| 8 | **Constraints that were "confirmed" can still be wrong.** F5's D2 was held at [0.83, 0.85] for four weeks based on early data. Releasing it to 0.915 produced a 32% yield jump — the constraint was based on too few observations in the high-D2 region. |
+| 8 | **F1 validated: model-free beats model-based when dynamics are extreme.** The radial Spearman analysis predicted the hotspot correctly from 17 points where the GP could not. For extreme-dynamic-range functions, spatial statistics outperform kernel methods. |

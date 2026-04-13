@@ -1396,8 +1396,8 @@ with right_col:
             )
             st.session_state.acq_overrides[fn_id] = acq_choice
 
-            beta_val = st.slider("β (UCB exploration)", 0.5, 5.0, cfg["beta"], 0.1, key=f"beta_{fn_id}")
-            xi_val   = st.slider("ξ (EI/PI exploration)", 0.0, 0.5, cfg["xi"], 0.01, key=f"xi_{fn_id}")
+            beta_val = st.slider("β (UCB exploration)", 0.5, 5.0, cfg["beta"], 0.1, key=f"beta_{fn_id}", format="%0.2f")
+            xi_val   = st.slider("ξ (EI/PI exploration)", 0.00, 0.25, cfg["xi"], 0.001, key=f"xi_{fn_id}", format="%0.3f")
 
             st.markdown("")
             c1, c2 = st.columns(2)
