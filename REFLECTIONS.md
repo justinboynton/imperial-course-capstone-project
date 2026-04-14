@@ -1506,3 +1506,80 @@ For W12, I deliberately shifted from trusting surrogate suggestions to using ana
 This week represents a deliberate strategic pivot: from "run the surrogate and submit its suggestion" to "use the surrogate as one input among several, and prefer analysis-driven or model-free candidates when confidence is low." The analysis notebooks (08, 09, 10, 11) have become the primary decision-making tool, with the Streamlit dashboard serving as a secondary cross-check rather than the primary suggestion engine.
 
 For F6, the submission is the raw model-free centroid from notebook 10 — no surrogate involved at all. For F4, it is the top-5 centroid with minor rounding. For F3, it is a blend of the local GP and centroid. Only F5, F7, and F8 still rely primarily on the surrogate pipeline, and even there the suggestions were validated against the centroid before submission.
+
+---
+
+## Week 12 Results
+
+W12 returned 1 new all-time best and validated the analysis-driven approach for several functions.
+
+| Fn | W12 Y | vs Previous Best | Outcome |
+|----|-------|-----------------|---------|
+| F1 | 1.83×10⁻⁶ | **New best** (was 1.64×10⁻⁷) | +11× — model-free radial refinement continues to improve |
+| F2 | 0.529 | Below W6 peak (0.726) | Noise-dominated regression; X₁=0.691 slightly low |
+| F3 | −0.0136 | Below W11 (−0.0083) | Slight regression; C=0.520 pushed outside sweet spot |
+| F4 | +0.370 | Matches W8 (0.367) | Centroid strategy validated — near-identical to all-time best |
+| F5 | **4368.9** | **New best** (was 4125.9) | **8th consecutive improvement** — gradient continuation to boundary |
+| F6 | −0.263 | Below W8 (−0.246) | Centroid strategy near-best; Milk=0.029 slightly too high |
+| F7 | 2.546 | Below W11 (2.588) | Slight regression; D5=0.305 marginally outside optimal range |
+| F8 | 9.860 | Below W9 (9.875) | Near-best; hand-tuned query within 0.015 of all-time best |
+
+**Key takeaways from W12:**
+1. F5's 8th consecutive best confirms the gradient toward D2/D3/D4 → 1.0 is the most reliable signal in the entire challenge (+301% total improvement from initial best).
+2. F1's continued improvement via model-free radial refinement validates the decision to abandon the GP for this function entirely. Two consecutive bests (W12, after W11 was also above W10) by shifting toward the hotspot centre.
+3. F4's centroid query returned +0.370, nearly matching the W8 all-time best (+0.367). This validates the centroid as a reliable candidate generator for stable basins.
+4. F6's centroid-based query (−0.263) was close to the all-time best (−0.246) but did not improve. Milk=0.029 vs W8's 0.018 likely explains the gap.
+
+---
+
+## Week 13 — Final Submissions
+
+### Strategy
+
+With no further submissions possible, the W13 strategy was pure exploitation with zero exploration. Every query targeted the tightest possible perturbation around the best-known point or followed a confirmed gradient. The analysis notebooks and W12 results provided the final calibration.
+
+### W13 submission strategy
+
+| Fn | W13 query | Source | Strategy |
+|----|-----------|--------|----------|
+| F1 | [0.676, 0.691] | Model-free radial | Continued shift toward hotspot centre; both dims reduced from W12 |
+| F2 | [0.700, 0.933] | Centroid + noise-hedge | X₁ restored to 0.700 (W6 best region); X₂=0.933 near W6's 0.932 |
+| F3 | [0.525, 0.445, 0.047] | Bounded GP | C=0.047 was a surrogate suggestion — turned out to be far outside the confirmed basin |
+| F4 | [0.398, 0.421, 0.360, 0.371] | Bounded GP + centroid | P1 shifted lower (0.398 vs W12's 0.434); other dims held near centroid |
+| F5 | [0.271, 0.994, 0.997, 0.994] | Gradient continuation | C1 pushed further down (0.271 vs W12's 0.296); D2/D3/D4 held near 1.0 |
+| F6 | [0.504, 0.381, 0.726, 0.779, 0.0001] | Bounded GP | Flour shifted to 0.504; Milk near-zero; Sugar reduced |
+| F7 | [0.101, 0.319, 0.353, 0.279, 0.286, 0.698] | Bounded GP + centroid | D2 reduced to 0.319 (from W12's 0.355); D6 lowered to 0.698 |
+| F8 | [0.095, 0.220, 0.002, 0.008, 0.967, 0.688, 0.328, 0.874] | Bounded GP | Tight dims within confirmed ranges; D6=0.688 to test insensitivity |
+
+### W13 results
+
+| Fn | W13 Y | vs All-time Best | Outcome |
+|----|-------|-----------------|---------|
+| F1 | **2.86×10⁻⁵** | **New best** (was 1.83×10⁻⁶) | +16× over W12 — radial refinement produced 3 consecutive bests (W11–W13) |
+| F2 | 0.638 | Below W6 (0.726) | Better than W12 (0.529) but noise prevents matching W6 peak |
+| F3 | −0.0328 | Below W11 (−0.0083) | **Regression** — C=0.047 was a catastrophic miss; the GP's suggestion violated the basin |
+| F4 | **+0.612** | **New best** (was +0.370/W12) | +66% over previous best — P1=0.398 unlocked a higher region |
+| F5 | 4258.8 | Below W12 (4368.9) | Slight regression — C1=0.271 pushed too low; optimum near C1≈0.296 |
+| F6 | −0.331 | Below W8 (−0.246) | Regression — Flour=0.504 too high, Sugar=0.381 too low |
+| F7 | **2.717** | **New best** (was 2.588/W11) | +5.0% — D2=0.319 and D6=0.698 improved over W11's D2=0.349, D6=0.717 |
+| F8 | 9.836 | Below W9 (9.875) | Near-best; confirms D6 insensitivity (D6 shifted from 0.400 to 0.688 with minimal impact) |
+
+### Final reflection
+
+The last week produced 3 new all-time bests (F1, F4, F7), bringing the challenge to a strong close:
+
+1. **F1's 3 consecutive improvements (W11–W13)** are the most surprising result of the entire challenge. After 7 weeks of zeros and a single W8 breakthrough, the model-free radial approach discovered that the hotspot centre is not at [0.691, 0.707] as initially thought but slightly shifted toward [0.676, 0.691]. Each week's perturbation toward this revised centre improved by an order of magnitude.
+
+2. **F4's W13 breakthrough (+0.612)** is the largest single-week jump for this function. The centroid strategy in W12 confirmed the basin, and the W13 query explored P1=0.398 — lower than any previous submission in the confirmed region. This revealed that the optimum extends further toward lower P1 than the hard constraint table suggested.
+
+3. **F7 continued its steady improvement** under the RQ kernel + search bounds configuration, now with 3 bests in the last 4 weeks (W9, W11, W13). The shift in D2 (from 0.349 to 0.319) and D6 (from 0.717 to 0.698) shows there was still room to optimise within the bounded region.
+
+4. **F3's regression is the week's biggest lesson.** Despite search bounds being active, the GP suggested C=0.047 — far outside the confirmed [0.43, 0.55] basin for dimension 3. This was a reminder that search bounds constrain candidate generation but cannot prevent the GP from ranking a pathological suggestion highest within those bounds. For F3, the local GP or centroid should have been used exclusively.
+
+5. **F5's regression at C1=0.271** pinpoints the gradient's limit. After 8 consecutive bests pushing C1 downward (from 0.339 in W5 to 0.296 in W12), the W13 result confirms the optimum is near C1≈0.296, not lower. The gradient strategy worked perfectly for 8 weeks and correctly identified the boundary on the 9th.
+
+6. **F8 confirmed D6 insensitivity:** shifting D6 from 0.400 (W12) to 0.688 (W13) changed Y by only 0.024 (9.860 → 9.836), validating the dimension masking decision from W11.
+
+### Challenge summary
+
+Over 13 weeks, all 8 functions beat the initial data best. Four functions set new all-time bests in the final two weeks (F1, F4, F5, F7). The most impactful engineering decisions were output standardisation (W4), kernel variant selection (W7–W8), search bounds (W11), and the pivot to analysis-driven queries (W12). The most impactful strategic insight was that simple model-free methods (weighted centroids, radial analysis) outperform sophisticated surrogates when the GP's assumptions break down — which happened for at least 3 of 8 functions.

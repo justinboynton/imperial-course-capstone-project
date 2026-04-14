@@ -1,7 +1,10 @@
-streamlit==1.48.0
-scikit-learn==1.7.1
-scipy==1.15.3
-plotly==6.0.1
-anthropic==0.89.0
-numpy==1.26.4
-pandas==2.3.1
+numpy>=2.0
+pandas>=2.3
+scikit-learn>=1.6
+scipy>=1.13
+matplotlib>=3.9
+plotly>=6.0
+streamlit>=1.48
+anthropic>=0.89
+ngboost>=0.5
+seaborn>=0.13

@@ -23,6 +23,11 @@ Black-box optimisation (BBO) sits at the heart of many practical ML challenges:
 
 The core insight is that *how* you decide where to query next is itself an ML problem. Using a surrogate model (a Gaussian Process in this case) to approximate the unknown function and an acquisition function to decide where to query next is the foundation of **Bayesian Optimisation** — one of the most sample-efficient strategies known.
 
+
+## Summary for a General Audience
+
+Imagine trying to find the best settings for eight different processes — a chemical reaction, a machine-learning model, a recipe — but you can only run one experiment per process per week, and you never see the underlying formula. That is what this project does. We built a statistical model that learns from each experiment's result, predicts where the best outcome is likely to be, and recommends the next experiment to try. Over 13 weeks we submitted 104 experiments in total. Every process improved on its starting point, some dramatically: one chemical yield nearly quadrupled, and a contamination detector went from undetectable signal to a clear reading. The key lesson was that as the model's predictions became less reliable in later weeks, the simplest approach — averaging the best results seen so far — often outperformed the sophisticated model. Knowing when to trust your model and when to rely on the data directly is a skill that applies far beyond this project.
+
 ---
 
 ## Section 2: Inputs and Outputs
@@ -300,10 +305,22 @@ The design choices in this project are grounded in established Bayesian Optimisa
 ## Branch History
 
 
-| Branch   | Description                       |
-| -------- | --------------------------------- |
-| `main`   | Current working state             |
-| `week-1` | Snapshot after week 1 submissions |
+| Branch              | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `main`              | Current working state                                              |
+| `week-1`            | Legacy snapshot after week 1 submissions                           |
+| `feature/week-1`    | Week 1: initial submissions, all 8 functions below initial best    |
+| `feature/week-2`    | Week 2: F4, F5, F7, F8 beat initial best; .npy data integrated    |
+| `feature/week-3`    | Week 3: F5, F6 new bests; F2 near-initial                         |
+| `feature/week-4`    | Week 4: F2 beats initial; output standardisation introduced        |
+| `feature/week-5`    | Week 5: 4 new bests (F3, F5, F6, F8); hard constraints identified |
+| `feature/week-6`    | Week 6: 3 new bests (F2, F4, F6); kernel variant analysis begun   |
+| `feature/week-7`    | Week 7: F4, F5 new bests; kernel switches (Matérn 3/2, RQ)        |
+| `feature/week-8`    | Week 8: best week — 6 new bests; F1 hotspot breakthrough          |
+| `feature/week-10`   | Week 10: F5 6th consecutive best; exploration bets all regressed   |
+| `feature/week-11`   | Week 11: 3 new bests; search bounds, dim mask, LS cap implemented |
+| `feature/week-12`   | Week 12: analysis-driven pivot; notebooks 10–11; centroid queries  |
+| `feature/week-13`   | Week 13: final submissions; pure exploitation across all functions |
 
 
 ---
