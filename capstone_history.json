@@ -44,6 +44,10 @@
       [
         0.7,
         0.715
+      ],
+      [
+        0.686,
+        0.7
       ]
     ],
     "Y": [
@@ -57,9 +61,10 @@
       1.6432747338149113e-07,
       -1.3035849618119682e-14,
       3.670402229044634e-10,
-      3.2990876704636415e-09
+      3.2990876704636415e-09,
+      0.0000018349323131072376
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -119,6 +124,12 @@
       {
         "acq": "ucb",
         "beta": 0.5,
+        "xi": 0.05,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ucb",
+        "beta": 0.1,
         "xi": 0.05,
         "kernel": "matern"
       }
@@ -237,6 +248,10 @@
       [
         0.699934,
         0.93501
+      ],
+      [
+        0.690979,
+        0.92988
       ]
     ],
     "Y": [
@@ -250,9 +265,10 @@
       0.7150414734318267,
       0.5476188179095138,
       0.5635403305782468,
-      0.6905446041212768
+      0.6905446041212768,
+      0.5285820384560111
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -312,6 +328,12 @@
       {
         "acq": "ucb",
         "beta": 0.5,
+        "xi": 0.1,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ucb",
+        "beta": 0.3,
         "xi": 0.1,
         "kernel": "matern"
       }
@@ -441,6 +463,11 @@
         0.511326,
         0.434735,
         0.483878
+      ],
+      [
+        0.479374,
+        0.45033,
+        0.519562
       ]
     ],
     "Y": [
@@ -454,9 +481,10 @@
       -0.01724598274965461,
       -0.010218147604146128,
       -0.23730069445104945,
-      -0.008312664130601619
+      -0.008312664130601619,
+      -0.013630969722393664
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -517,6 +545,12 @@
         "acq": "ei",
         "beta": 1.96,
         "xi": 0.005,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ei",
+        "beta": 1.96,
+        "xi": 0.001,
         "kernel": "matern"
       }
     ],
@@ -656,6 +690,12 @@
         0.452865,
         0.370945,
         0.394541
+      ],
+      [
+        0.434205,
+        0.434488,
+        0.349605,
+        0.37861
       ]
     ],
     "Y": [
@@ -669,9 +709,10 @@
       0.3674092752252851,
       -3.207445075952165,
       -1.4261805581193125,
-      -0.15300793405598823
+      -0.15300793405598823,
+      0.3703049569334884
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -732,6 +773,12 @@
         "acq": "ei",
         "beta": 1.5,
         "xi": 0.001,
+        "kernel": "matern32"
+      },
+      {
+        "acq": "ei",
+        "beta": 1.5,
+        "xi": 0.005,
         "kernel": "matern32"
       }
     ],
@@ -871,6 +918,12 @@
         0.982196,
         0.996598,
         0.994875
+      ],
+      [
+        0.295867,
+        0.998407,
+        0.998738,
+        0.99536
       ]
     ],
     "Y": [
@@ -884,9 +937,10 @@
       1963.6663889721196,
       2238.728285475558,
       3448.172108493457,
-      4125.877377808142
+      4125.877377808142,
+      4368.864142826805
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -947,6 +1001,12 @@
         "acq": "mean",
         "beta": 1.5,
         "xi": 0.01,
+        "kernel": "rbf"
+      },
+      {
+        "acq": "mean",
+        "beta": 0.0,
+        "xi": 0.0,
         "kernel": "rbf"
       }
     ],
@@ -1099,11 +1159,11 @@
         0.008459
       ],
       [
-        0.459136,
-        0.409157,
-        0.738815,
-        0.775023,
-        0.012014
+        0.451,
+        0.416,
+        0.722,
+        0.776,
+        0.029
       ]
     ],
     "Y": [
@@ -1118,7 +1178,7 @@
       -0.48517496855391673,
       -0.3893743209343806,
       -0.24986944851050077,
-      0.0
+      -0.2628787288103569
     ],
     "week": 12,
     "meta": [
@@ -1185,8 +1245,8 @@
       },
       {
         "acq": "mean",
-        "beta": 1.96,
-        "xi": 0.01,
+        "beta": 0.5,
+        "xi": 0.001,
         "kernel": "matern"
       }
     ],
@@ -1256,6 +1316,12 @@
         "obs_count": 11,
         "timestamp": "2026-04-13 17:21",
         "text": "\n\n# Bayesian Optimisation Analysis \u2014 Function 6 (5D Cake Recipe)\n\n## 1. Landscape Analysis\n\nThe data reveals a fairly clear structure:\n\n**Best-performing region** (Y > -0.30):\n| Param | Flour | Sugar | Eggs | Butter | Milk |\n|-------|-------|-------|------|--------|------|\n| Wk 8 (best) | 0.472 | 0.407 | 0.735 | 0.782 | 0.018 |\n| Wk 6 | 0.409 | 0.411 | 0.766 | 0.787 | 0.024 |\n| Wk 11 | 0.491 | 0.395 | 0.718 | 0.770 | 0.009 |\n\n**Key patterns:**\n- **Milk should be very low** (~0.01\u20130.02). Every submission with Milk > 0.1 performed worse. This is the strongest single signal.\n- **Butter should be high** (~0.75\u20130.85). Week 4 pushed Butter to 0.97 and got punished (Y = -1.29), suggesting a sweet spot around 0.77\u20130.80.\n- **Eggs moderately high** (~0.72\u20130.77). There's a ridge here; going too high (Week 7, Eggs=0.82) degraded performance.\n- **Flour moderate** (~0.40\u20130.50). The function seems relatively tolerant here.\n- **Sugar moderate** (~0.39\u20130.43). Similar tolerance, but extremes hurt (Week 1, Sugar=0.53 with bad Eggs/Milk was terrible).\n\n**Shape:** The function appears to be a smooth, single-peaked landscape with a penalty that increases roughly quadratically from the optimum. The negative penalty structure means we're converging toward a single basin, not navigating multimodality.\n\n## 2. Acquisition Strategy Review\n\n| Decision | Assessment |\n|----------|-----------|\n| **EI with Mat\u00e9rn** | Good default. Mat\u00e9rn \u03bd=5/2 handles the smooth-but-not-infinitely-differentiable landscape well. |\n| **Switching to MEAN** (Wks 5, 6, 9) | Mixed results. Week 6 (MEAN) found the second-best point, but this is **pure exploitation** with zero exploration \u2014 risky mid-campaign. |\n| **Week 4: \u03be=0.05** | Too exploratory at that stage \u2014 pushed Butter to an extreme and got punished. |\n| **Week 10: matern32** | Unnecessarily rough kernel. The landscape appears smoother than Mat\u00e9rn 3/2 assumes. Revert to Mat\u00e9rn 5/2. |\n| **Week 11: \u03b2=0.6, \u03be=0.001** | Very tight exploitation. Got Y=-0.25, nearly matching the best. Good for late-stage refinement. |\n\n**Main critique:** The campaign has oscillated between exploration and exploitation without a coherent schedule. Weeks 5\u20139 circled the same basin repeatedly without systematic refinement.\n\n## 3. Next Query Recommendation\n\n**Recommended point:**\n```\nX = [0.460, 0.410, 0.740, 0.775, 0.012]\n```\n\n**Reasoning:**\n- This sits at the centroid of the three best points (Wk 6, 8, 11), with minor adjustments:\n  - **Flour = 0.460**: Splits the difference between 0.472 (best) and 0.409 (second best), slightly favouring the best.\n  - **Sugar = 0.410**: Consistent sweet spot across all top performers.\n  - **Eggs = 0.740**: Slightly higher than Wk 11 (0.718) but lower than Wk 6 (0.766) \u2014 centring on the ridge.\n  - **Butter = 0.775**: The top 3 all cluster near 0.77\u20130.79. Targeting the lower end since Wk 9 (Butter=0.85) was penalised.\n  - **Milk = 0.012**: Push even lower. The monotonic improvement as Milk \u2192 0 suggests the optimum may be near 0.\n\nI'd also recommend a **secondary exploration point** if two queries are possible:\n```\nX = [0.500, 0.380, 0.710, 0.760, 0.005]\n```\nThis probes slightly outside the cluster (higher Flour, lower Sugar/Eggs, near-zero Milk).\n\n## 4. \u03b2 and \u03be Settings\n\n```\nacq = EI\n\u03b2 = 0.5\n\u03be = 0.001\nkernel = matern (\u03bd=5/2)\n```\n\n**Justification:**\n- **\u03be = 0.001**: We're in late-stage refinement with 31 total observations. The improvement needed is small (current best = -0.246, target \u2248 0). Tiny \u03be focuses on incremental gains.\n- **\u03b2 = 0.5**: Low exploration bonus. We've already identified the basin; the GP posterior should be well-calibrated here. No need to inflate uncertainty.\n- **Mat\u00e9rn 5/2**: The landscape is smooth enough to warrant this. Mat\u00e9rn 3/2 introduces unnecessary roughness in the surrogate.\n\n## 5. Overall Strategy for Remaining Queries\n\n**Phase: Pure local refinement (exploitation-dominant)**\n\n1. **Immediate (next 2\u20133 queries):** Systematically refine within the box:\n   - Flour \u2208 [0.43, 0.51]\n   - Sugar \u2208 [0.38, 0.43]\n   - Eggs \u2208 [0.71, 0.76]\n   - Butter \u2208 [0.75, 0.80]\n   - Milk \u2208 [0.00, 0.03]\n\n2. **Test Milk = 0.0 explicitly.** The strongest gradient in the data is along the Milk axis. If the boundary is valid, Milk = 0.0 may be optimal.\n\n3. **One-at-a-time perturbations:** From the best point found, vary each dimension \u00b10.03 to estimate local gradients precisely. This Nelder-Mead-like strategy is efficient in 5D near convergence.\n\n4. **Do NOT explore distant regions.** With a single-basin penalty function and a target of 0, the remaining budget is best spent squeezing the last ~0.25 units out of the known basin rather than hunting for a second mode that almost certainly doesn't exist.\n\n5. **If a query returns Y > -0.20**, lock in that region and do a final tight grid of \u00b10.01 perturbations around it.\n\n**Expected achievable target:** Y \u2248 -0.10 to -0.15 with disciplined local refinement."
+      },
+      {
+        "week": 12,
+        "obs_count": 12,
+        "timestamp": "2026-04-13 19:55",
+        "text": "\n\n# Bayesian Optimisation Analysis \u2014 Function 6 (Week 13)\n\n## 1. Landscape Analysis\n\nThe data reveals a clear, structured landscape:\n\n**Optimal Region Identified:**\n| Dimension | Optimal Range | Best (Y=0) | Notes |\n|-----------|--------------|-------------|-------|\n| Flour | 0.45\u20130.49 | 0.4591 | Moderate, slightly below center |\n| Sugar | 0.39\u20130.43 | 0.4092 | Moderate, slightly below center |\n| Eggs | 0.72\u20130.77 | 0.7388 | High-ish |\n| Butter | 0.77\u20130.85 | 0.775 | High |\n| Milk | 0.01\u20130.02 | 0.012 | Very low |\n\n**Key patterns:**\n- **Milk is strongly penalising** \u2014 every improvement has been associated with reducing Milk. The trajectory from ~0.17 \u2192 0.02 \u2192 0.01 has been the single most consistent driver of improvement.\n- **Butter has a sweet spot near 0.77\u20130.79** \u2014 going too high (0.97 in Week 4, Y=-1.29) or too low (0.56 in Week 10, Y=-0.39) hurts significantly.\n- **Eggs optimal around 0.73\u20130.77** \u2014 pushing higher (0.82 in Week 7) degraded performance.\n- **Flour and Sugar** are moderately sensitive, with optima near 0.46 and 0.41 respectively.\n- The function appears **unimodal** in this region with a roughly ellipsoidal penalty structure centered near the Week 12 point.\n\n**You've hit Y=0 (the theoretical maximum).** The function is a negative penalty that maxes at zero, and you've found it.\n\n## 2. Acquisition Strategy Review\n\n| Phase | Strategy | Verdict |\n|-------|----------|---------|\n| Weeks 1\u20134 | EI with default settings | Appropriate for exploration; Week 4's \u03be=0.05 was too exploratory |\n| Weeks 5\u20136 | MEAN exploitation | **Excellent pivot** \u2014 correctly identified the promising basin and exploited |\n| Weeks 7\u20139 | Mixed EI/MEAN | Good refinement, though Week 9 over-pushed Butter |\n| Weeks 10\u201311 | EI with tighter \u03be and lower \u03b2 | Smart fine-tuning for local refinement |\n| Week 12 | MEAN with Mat\u00e9rn 5/2 | **Perfect choice** \u2014 pure exploitation at the endgame delivered Y=0 |\n\n**The transition from exploration to exploitation was well-timed.** The switch to lower \u03b2 (0.6) and tighter \u03be (0.001) in Week 11 showed good adaptive thinking. Mat\u00e9rn 5/2 was appropriate for this smooth-looking function.\n\n## 3. Next Query Recommendation\n\nSince Y=0 is the **global maximum** (confirmed by domain notes: \"negative by design, scores near zero are best\"), the primary goal should be to **confirm robustness** or **verify there isn't a second optimum**.\n\n**Recommended point (confirmation near optimum with tiny perturbations):**\n```\nX = [0.4650, 0.4150, 0.7350, 0.7700, 0.008]\n```\n\nThis nudges Milk slightly lower and makes minor shifts to verify we're truly at the peak and not on a flat plateau.\n\n**Alternative (light exploration for a second mode):**\n```\nX = [0.5200, 0.3500, 0.7000, 0.7800, 0.005]\n```\n\n## 4. \u03b2 and \u03be Settings\n\n| Parameter | Value | Justification |\n|-----------|-------|---------------|\n| **acq** | MEAN | Pure exploitation \u2014 we're at/near the optimum |\n| **\u03b2** | 0.5 | Minimal exploration bonus; we've found the peak |\n| **\u03be** | 0.001 | Essentially zero improvement threshold \u2014 greedy refinement |\n| **kernel** | matern | Mat\u00e9rn 5/2 continues to fit this smooth landscape well |\n\n## 5. Overall Strategy\n\n**You've effectively solved this function.** Y=0 is the ceiling.\n\nFor remaining weeks:\n1. **Week 13:** Submit a confirmation point very close to the Week 12 solution to verify Y=0 is repeatable (if there's noise) or to see if Y can be infinitesimally better.\n2. **Weeks 14+:** If Y=0 is confirmed as the hard cap, consider this function complete and invest cognitive effort on other challenge functions.\n3. **If somehow Y>0 is possible**, do a tiny grid search within \u00b10.02 of the Week 12 point, focusing on pushing Milk toward 0.0 and fine-tuning Flour/Sugar.\n\n**Bottom line: Congratulations \u2014 this is a clean solve. Lock in the Week 12 result and move on.**"
       }
     ]
   },
@@ -1348,6 +1414,14 @@
         0.270486,
         0.301086,
         0.717121
+      ],
+      [
+        0.09,
+        0.355318,
+        0.359999,
+        0.260677,
+        0.305081,
+        0.72009
       ]
     ],
     "Y": [
@@ -1361,9 +1435,10 @@
       2.3766092022818053,
       2.4513694687228793,
       1.8141508390928534,
-      2.588316240445013
+      2.588316240445013,
+      2.54594212600306
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -1424,6 +1499,12 @@
         "acq": "ei",
         "beta": 1.0,
         "xi": 0.01,
+        "kernel": "rq"
+      },
+      {
+        "acq": "ei",
+        "beta": 1.0,
+        "xi": 0.005,
         "kernel": "rq"
       }
     ],
@@ -1607,6 +1688,16 @@
         0.400081,
         0.3303,
         0.862679
+      ],
+      [
+        0.075,
+        0.22,
+        0.001,
+        0.01,
+        0.98,
+        0.4,
+        0.325,
+        0.87
       ]
     ],
     "Y": [
@@ -1620,9 +1711,10 @@
       9.830331591931,
       9.8752654843996,
       9.1658649515009,
-      9.8564416371554
+      9.8564416371554,
+      9.859587
     ],
-    "week": 11,
+    "week": 12,
     "meta": [
       {},
       {
@@ -1683,6 +1775,12 @@
         "acq": "ucb",
         "beta": 0.4,
         "xi": 0.007,
+        "kernel": "matern"
+      },
+      {
+        "acq": "ei",
+        "beta": 2.5,
+        "xi": 0.01,
         "kernel": "matern"
       }
     ],
@@ -1758,6 +1856,12 @@
         "obs_count": 10,
         "timestamp": "2026-04-13 12:31",
         "text": "\n\n# Bayesian Optimisation Analysis \u2014 Function 8, Week 11\n\n## 1. Landscape Analysis\n\n**Top-performing region** (Y > 9.7) is tightly clustered:\n\n| Param | Best Region | Pattern |\n|-------|------------|---------|\n| **P1** | 0.08\u20130.21 | Low values; sweet spot ~0.08\u20130.14 |\n| **P2** | 0.20\u20130.28 | Low-to-moderate |\n| **P3** | **\u2248 0.00\u20130.04** | Strongly driven to near-zero |\n| **P4** | **\u2248 0.01\u20130.04** | Strongly driven to near-zero |\n| **P5** | **\u2248 0.94\u20130.99** | Strongly driven to near-one |\n| **P6** | 0.07\u20130.70 | Broad/insensitive \u2014 long ARD length-scale confirmed |\n| **P7** | 0.22\u20130.34 | Moderate, loosely centred ~0.32 |\n| **P8** | 0.72\u20130.87 | High values, centred ~0.86 |\n\n**Key observations:**\n- **P3 and P5 dominate**: P3\u21920 and P5\u21921 are nearly monotonic drivers. Their negative correlation (r\u2248\u22120.65) likely reflects the optimizer converging to opposite corners simultaneously.\n- **P6 is the least sensitive** \u2014 Week 2 (0.067), Week 8 (0.697), Week 9 (0.506) all yield Y > 9.7. This is a near-nuisance dimension.\n- **P8 is moderately sensitive** with a broad optimum around 0.85\u20130.87.\n- The function appears **unimodal in the high-performing basin** \u2014 successive refinements around the Week 5/7/8/9 cluster keep improving, suggesting a smooth ridge rather than multiple separated peaks.\n- Week 10 deviated significantly (P4=0.71, P5=0.69) and dropped to 9.17 \u2014 confirms the basin boundaries are relatively sharp along P4 and P5.\n\n## 2. Acquisition Strategy Review\n\n| Phase | Strategy | Verdict |\n|-------|----------|---------|\n| Weeks 1\u20136 | UCB \u03b2=2.5\u20133.5 | **Appropriate** \u2014 good exploration in 8D; found the promising basin by Week 5 |\n| Week 7 | UCB \u03b2=1.5 | Reasonable shift to exploitation but slightly premature |\n| Weeks 8\u20139 | EI \u03be=0.02\u20130.1 | **Good pivot** \u2014 EI with moderate \u03be refined the basin effectively, yielding 9.83\u21929.88 |\n| Week 10 | EI \u03be=0.049 | The *point chosen* was too exploratory (P4=0.71, P5=0.69 far from the basin). This suggests the GP posterior is still very uncertain at 8D and EI with \u03be=0.049 was pulled toward a phantom high-uncertainty region |\n\n**Main issue:** With only ~50 points in 8D, the GP is inevitably under-conditioned. The Week 10 misfire shows EI with moderate \u03be can still propose poor points when the surrogate is unreliable far from data.\n\n**Recommendation:** Switch to **tighter local exploitation** \u2014 either EI with very small \u03be or Thompson Sampling constrained to the known basin. The GP is most trustworthy *near* existing good points.\n\n## 3. Next Query Recommendation\n\n### Proposed point:\n\n| P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 |\n|----|----|----|----|----|----|----|-----|\n| **0.095** | **0.235** | **0.001** | **0.010** | **0.975** | **0.400** | **0.330** | **0.870** |\n\n**Reasoning:**\n- **P1=0.095**: Interpolates between Week 9 (0.080) and Week 8 (0.094); both gave Y > 9.83. Slight shift toward the Week 8/9 midpoint.\n- **P2=0.235**: Averages Week 9 (0.220) and Week 5 (0.240) \u2014 the two best submissions.\n- **P3=0.001**: Push further toward zero. Week 9 (0.003) was the best; monotonic improvement suggests the boundary is beneficial.\n- **P4=0.010**: Similarly push P4 further toward zero (Week 9 was 0.016). This is the dimension with most remaining headroom.\n- **P5=0.975**: Slightly above Week 9 (0.965), probing whether the gradient continues upward toward 1.0.\n- **P6=0.400**: Middle of the insensitive range \u2014 removes this as a noise source.\n- **P7=0.330**: Consistent across top performers (0.32\u20130.34).\n- **P8=0.870**: Slightly above Week 9 (0.871) to confirm this is near-optimal.\n\nThis is a **micro-refinement** around the Week 9 best, pushing the three most sensitive dimensions (P3, P4, P5) slightly further toward their optimal boundaries.\n\n## 4. \u03b2 and \u03be Settings\n\n```\nAcquisition: EI\n\u03be = 0.005\nkernel = matern (ARD)\n```\n\n**Justification:**\n- **EI over UCB**: At this stage, EI's improvement-focused criterion is more appropriate than UCB's confidence-bound exploration. We're within ~0.1\u20130.2 of what appears to be the global optimum.\n- **\u03be = 0.005** (very small): We want *greedy exploitation* near the known best. The Week 10 failure demonstrated that moderate \u03be (0.049) in 8D can send the query to a spurious high-variance region. With \u03be=0.005, EI will only propose points where the GP confidently predicts improvement.\n- **Matern + ARD**: Continue \u2014 ARD correctly identifies the short length-scales on P3, P4, P5 and long length-scales on P6, P8. Switching kernels now would discard this learned structure.\n\nIf the optimizer insists on proposing a point far from the known basin (as in Week 10), **override it with the manually designed point above**. At 50 points in 8D, human pattern recognition on the top-5 points is more reliable than the GP's posterior in unexplored regions.\n\n## 5. Overall Strategy for Remaining Weeks\n\n### Phase map (assuming ~5 weeks remain):\n\n| Weeks | Strategy | Focus |\n|-------|----------|-------|\n| **11\u201312** | **Pure exploitation** \u2014 EI, \u03be=0.005 | Micro-refine P3\u21920, P4\u21920, P5\u21921 near best point; explore P1 in [0.06, 0.15] and P2 in [0.15, 0.30] |\n| **13** | **Controlled P6/P8 probe** \u2014 EI, \u03be=0.01 | Fix P1,P3,P4,P5,P7 at best values; vary P6 and P8 to check for missed interactions |\n| **14\u201315** | **Final refinement** \u2014 EI, \u03be=0.001 | Converge on the single best point with all learning incorporated |\n\n### Key principles:\n1. **Trust the basin, not the GP far from data.** Manual sanity-check every proposed point against the top-5 pattern. Reject any proposal with P5 < 0.9 or P3 > 0.1 or P4 > 0.1.\n2. **Diminishing returns are real.** Going from 9.80\u21929.88 took 4 evaluations. The next 0.1 improvement (if it exists) requires very precise tuning of 2\u20133 dimensions.\n3. **P1 and P2 have the most remaining uncertainty** among the sensitive dimensions \u2014 their optimal values across top runs vary more than P3/P4/P5. Allocate one evaluation to probing P1\u22480.05 (near initial best) vs P1\u22480.15 with everything else fixed.\n4. **Do not explore distant regions.** With 8D and ~50 points, the GP cannot reliably identify distant secondary optima. The probability of a hidden peak exceeding 9.88 in an unsampled region is low relative to the cost of a wasted evaluation.\n\n### Expected outcome:\nRealistic target: **Y \u2248 9.90\u20139.95** through refinement of the current basin. The improvement trajectory (9.70\u21929.80\u21929.83\u21929.88) suggests ~0.05\u20130.10 remains achievable."
+      },
+      {
+        "week": 11,
+        "obs_count": 11,
+        "timestamp": "2026-04-13 19:47",
+        "text": "\n\n# Bayesian Optimisation Analysis \u2014 Function 8, Week 12\n\n## 1. Landscape Analysis\n\n### Key Patterns from Top Performers\n\n| Param | Best (W9: 9.875) | W8 (9.830) | W7 (9.775) | W5 (9.800) | W2 (9.704) | Pattern |\n|-------|:-:|:-:|:-:|:-:|:-:|---------|\n| **D1** | 0.080 | 0.094 | 0.076 | 0.136 | 0.212 | **Low** (~0.05\u20130.15) |\n| **D2** | 0.220 | 0.275 | 0.130 | 0.240 | 0.204 | **Low-moderate** (~0.13\u20130.28) |\n| **D3** | 0.003 | 0.004 | 0.011 | 0.025 | 0.040 | **Near zero** (<0.04) |\n| **D4** | 0.016 | 0.019 | 0.025 | 0.032 | 0.040 | **Near zero** (<0.04) |\n| **D5** | 0.965 | 0.942 | 0.955 | 0.989 | 0.973 | **Near 1.0** (critical) |\n| **D6** | 0.506 | 0.697 | 0.157 | 0.204 | 0.067 | **Spread** \u2014 likely noise |\n| **D7** | 0.326 | 0.329 | 0.321 | 0.334 | 0.219 | **~0.32** (tight cluster) |\n| **D8** | 0.871 | 0.861 | 0.869 | 0.718 | 0.061 | **Mixed** \u2014 possibly noisy or weakly relevant |\n\n### Structural Conclusions\n\n- **Basin identified**: The optimum lies in a narrow ridge characterised by D1\u2208[0.06,0.14], D2\u2208[0.13,0.28], D3\u21920, D4\u21920, D5\u21921, D7\u22480.32.\n- **D5 is the most critical dimension** \u2014 the ARD issue (length-scale=10) is a GP modelling failure; all top-5 results have D5>0.94. The function appears to have a steep monotonic increase in D5 near 1.0.\n- **D6 is noise**: top-5 values span [0.07, 0.70] with no correlation to Y. Confirmed irrelevant.\n- **D8 ambiguity**: W2 scored 9.704 with D8=0.061, while W5\u2013W9 cluster around 0.86. D8 may have a weak effect or interact with other dims. W5's D8=0.718 with Y=9.800 suggests the optimum is at higher D8, but it's not as tightly constrained as D1\u2013D5/D7.\n- **D7 convergence**: All top performers (except W2) cluster tightly at ~0.32. This is a well-identified optimum coordinate.\n- **Diminishing returns**: The improvement from W5 (9.800) \u2192 W9 (9.875) came from tightening D3/D4 towards zero and centring D1/D2. We're in a fine-tuning regime.\n\n## 2. Acquisition Strategy Review\n\n| Aspect | Assessment |\n|--------|-----------|\n| **Kernel** | Mat\u00e9rn \u2014 appropriate for this likely non-smooth function. \u2705 |\n| **EI vs UCB** | EI (W8\u2013W9) produced the two best results. UCB with low \u03b2 (W11, \u03b2=0.4) was essentially exploitation but scored slightly worse (9.856 vs 9.875). EI with moderate \u03be seems to balance better. |\n| **\u03b2 trajectory** | Started high (3.5) for exploration, reduced progressively. Good. But \u03b2=0.4 (W11) is over-exploitative and the GP posterior mean may have errors near boundaries. |\n| **\u03be settings** | \u03be=0.1 (W9) worked well \u2014 enough exploration to avoid GP mean errors. \u03be=0.007 (W11) was too greedy. |\n| **Dim masking** | The 6D GP (dropping D6/D8) is a good idea per domain notes, though D8 warrants caution. |\n| **Length-scale bounds** | Capping at 3.0 is critical \u2014 without it, the GP flattens D5 and mismodels the basin. \u2705 |\n\n**Key issue**: The GP is likely struggling with the boundary effects at D3\u22480, D4\u22480, D5\u22481. Standard stationary kernels have trouble modelling a function that peaks at a domain corner/edge. This means the GP posterior mean near the boundary may be biased, and pure exploitation can be slightly off.\n\n## 3. Next Query Recommendation\n\n### Primary Recommendation: Fine-tune within the basin\n\n```\nX = [0.075, 0.220, 0.001, 0.010, 0.980, 0.400, 0.325, 0.870]\n```\n\n**Rationale dimension by dimension:**\n\n| Dim | Value | Reasoning |\n|-----|-------|-----------|\n| D1 | 0.075 | Slightly tighter than W9 (0.080); W7's 0.076 scored well. The gradient points slightly lower. |\n| D2 | 0.220 | Matching W9's best value. |\n| D3 | 0.001 | Push closer to 0 \u2014 monotonic decrease evident (W9: 0.003\u21929.875 vs W5: 0.025\u21929.800). |\n| D4 | 0.010 | Push closer to 0, matching W11 which had the lowest D4 of our top queries. |\n| D5 | 0.980 | Push higher than W9 (0.965). W5 had 0.989 with Y=9.800 but worse D1-D4. Combining best D1-D4 with higher D5 should help. |\n| D6 | 0.400 | Noise dim \u2014 moderate value, doesn't matter. |\n| D7 | 0.325 | Centre of the tight cluster [0.32\u20130.33]. |\n| D8 | 0.870 | Matching W9's value in the high-performing cluster. |\n\n### Alternative (if willing to accept more risk): Push D5 to boundary\n\n```\nX = [0.070, 0.200, 0.000, 0.005, 0.999, 0.300, 0.330, 0.880]\n```\n\nThis pushes D3, D4, D5 to their extreme values. Higher risk due to potential boundary effects or numerical issues, but if the function truly increases monotonically along these axes, this could yield >9.9.\n\n## 4. \u03b2 and \u03be Settings\n\n### Recommended: **EI with \u03be = 0.01, kernel = Mat\u00e9rn**\n\n| Setting | Value | Justification |\n|---------|-------|---------------|\n| **Acquisition** | **EI** | EI produced the best two results (W8, W9). At this stage we want targeted improvement over the incumbent, which EI naturally provides. |\n| **\u03be** | **0.01** | We're in a fine-tuning regime \u2014 low \u03be to focus on the basin but not zero (to hedge against GP mean errors near boundaries). \u03be=0.1 was good for earlier exploration; now we need tighter focus. |\n| **\u03b2** | 2.5 (if UCB used) | Only relevant if falling back to UCB. |\n| **Kernel** | **Mat\u00e9rn 5/2** | Appropriate smoothness assumption. |\n| **Length-scale bounds** | [0.01, 2.0] | **Tighten upper bound from 3.0 to 2.0** \u2014 now that we have many points in the basin, we can afford shorter length-scales and better local modelling. |\n\n### Additional GP Configuration Recommendations:\n- **Dim masking**: Keep D6 masked out. Consider **keeping D8 in** \u2014 it shows some (weak) correlation in the top-5 and dropping it could lose information.\n- **Log-transform D3, D4**: Since the optimum is at the boundary (\u21920), fitting the GP on log(D3+\u03b5) and log(D4+\u03b5) would help the kernel model the steep gradient near zero.\n- **Input warping on D5**: Similarly, log(1\u2212D5+\u03b5) could help the GP capture the steep increase near D5=1.\n\n## 5. Overall Strategy for Remaining Weeks\n\n### Phase Assessment\nWe are in **late-stage local exploitation** with a well-characterised basin. The current best is 9.875, and gains will be incremental.\n\n### Recommended Approach\n\n```\nWeek 12:  Fine-tune \u2014 primary recommendation above (EI, \u03be=0.01)\nWeek 13:  If W12 improves \u2192 continue tightening along gradient (push D5\u21921, D3/D4\u21920)\n          If W12 doesn't improve \u2192 try the aggressive boundary point (D5=0.999)\nWeek 14+: Micro-perturbations around the best point found:\n          - Small random perturbations (\u00b10.02) on D1, D2, D7\n          - D3/D4 stay \u22480, D5 stays \u22480.98-1.0\n```\n\n### Key Strategic Principles\n\n1. **Fix the GP**: The biggest marginal gain comes from better surrogate modelling, not different acquisition functions. Input warping or log-transforms on boundary dimensions (D3, D4, D5) will dramatically improve predictions in the basin.\n\n2. **Don't waste queries on exploration**: With only a few weeks remaining, the probability of finding a second basin that beats 9.875 is very low. All top-5 results share the same basin.\n\n3. **Boundary probing**: The function likely continues to increase as D3\u21920, D4\u21920, D5\u21921. The question is whether it plateaus or has a sharp peak. Test this systematically.\n\n4. **D2 sensitivity check**: D2 has the widest spread among top performers (0.13\u20130.28). One query with D2\u22480.17 (between W7's 0.13 and W9's 0.22) could refine this.\n\n5. **Target**: Realistically, 9.90\u20139.95 seems achievable. Breaking 10.0 would require the function to have significant additional headroom in the corner region.\n\n### Risk Assessment\n- **Upside**: ~0.05\u20130.10 improvement (to ~9.92\u20139.97) if the boundary gradient continues\n- **Downside**: Minimal \u2014 staying near the basin guarantees Y > 9.7 even with poor luck\n- **Black swan**: A completely different basin exists (unlikely given 51 observations showing no evidence)"
       }
     ]
   }

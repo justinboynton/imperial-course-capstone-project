@@ -2,7 +2,7 @@
 
 Documents the surrogate model choices, acquisition settings, and learning outcomes for each of the eight black-box functions. Updated after each week's results are returned.
 
-**Current status:** Week 11 submissions complete (results pending). 2 weeks remaining.
+**Current status:** Week 12 submissions complete (results pending). 1 week remaining. W11 returned 3 new bests (F3, F5, F7).
 
 ---
 
@@ -60,7 +60,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.691, 0.707] | **1.64×10⁻⁷** | UCB β=1.5, Matérn | **Breakthrough** — +50 orders of magnitude |
 | 9 | [0.678, 0.759] | −1.30×10⁻¹⁴ | UCB β=0.5, Matérn | Negative; X₂=0.759 slightly outside band |
 | 10 | [0.702, 0.721] | 3.67×10⁻¹⁰ | UCB β=0.5, RBF | RBF trial — 3 orders worse than Matérn; kernel reverted |
-| 11 | [0.700, 0.715] | pending | UCB β=0.5, Matérn | Returned to Matérn; tight within hotspot band |
+| 11 | [0.700, 0.715] | 3.30×10⁻⁹ | UCB β=0.5, Matérn | Improved over W10 but below W8 peak |
+| 12 | [0.686, 0.700] | pending | UCB β=0.1, Matérn | Model-free radial; micro-perturbation toward hotspot centre |
 
 ### All-time best
 
@@ -110,7 +111,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.699, 0.927] | 0.715 | UCB β=2.5, Matérn, het-GP | Near-best; confirms region |
 | 9 | [0.700, 0.932] | 0.548 | UCB β=2.5, Matérn, het-GP | Regression — noise |
 | 10 | [0.706, 0.934] | 0.564 | UCB β=0.7, Matérn, het-GP | Noise-dominated regression |
-| 11 | [0.700, 0.935] | pending | UCB β=0.5, Matérn, het-GP | β further reduced; tight near W6 peak |
+| 11 | [0.700, 0.935] | 0.691 | UCB β=0.5, Matérn, het-GP | Near-best; noise-dominated |
+| 12 | [0.691, 0.930] | pending | UCB β=0.3, Matérn, het-GP | AI analysis + centroid; X₁ shifted toward W6 best |
 
 ### All-time best
 
@@ -159,11 +161,12 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.460, 0.518, 0.510] | −0.017 | EI ξ=0.02, Matérn | B drifting up — regression |
 | 9 | [0.606, 0.401, 0.510] | −0.010 | EI ξ=0.02, Matérn | A=0.606 exploration; near-best |
 | 10 | [0.987, 0.970, 0.950] | −0.237 | EI ξ=0.012, Matérn | Corner probe — 26× worse; confirms no second basin |
-| 11 | [0.511, 0.435, 0.484] | pending | EI ξ=0.005, Matérn | First bounded query; within confirmed basin |
+| 11 | [0.511, 0.435, 0.484] | **−0.00831** | EI ξ=0.005, Matérn | **New best** — search bounds prevented corner-wandering |
+| 12 | [0.479, 0.450, 0.520] | pending | EI ξ=0.001, Matérn | Local GP (k=15) + centroid blend from notebook 10 |
 
 ### All-time best
 
-> −0.00897 — Week 5 — [0.439, 0.461, 0.503]
+> −0.00831 — Week 11 — [0.511, 0.435, 0.484]
 
 ### Key findings
 
@@ -208,7 +211,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.438, 0.431, 0.355, 0.380] | **+0.367** | EI ξ=0.01, **Matérn 3/2** ARD | **All-time best** — 3rd consecutive |
 | 9 | [0.230, 0.457, 0.404, 0.463] | −3.207 | EI ξ=0.01, Matérn 3/2 ARD | P1=0.230 violated constraint |
 | 10 | [0.447, 0.484, 0.357, 0.321] | −1.426 | EI ξ=0.002, Matérn 3/2 ARD | P2=0.484 still too high |
-| 11 | [0.415, 0.453, 0.371, 0.395] | pending | EI ξ=0.001, Matérn 3/2 ARD | Bounded; all 4 dims within basin |
+| 11 | [0.415, 0.453, 0.371, 0.395] | −0.153 | EI ξ=0.001, Matérn 3/2 ARD | D2=0.453 outside [0.42, 0.44] — regression |
+| 12 | [0.434, 0.435, 0.350, 0.379] | pending | EI ξ=0.005, Matérn 3/2 ARD | Top-5 centroid from notebook 10; surrogate bypassed |
 
 ### All-time best
 
@@ -256,11 +260,12 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.351, 0.915, 0.958, 0.874] | **1963.7** | Mean, RBF | **D2 breakout** (+80%) |
 | 9 | [0.350, 0.923, 0.961, 0.902] | **2238.7** | Mean, RBF | **All-time best** (+106%) |
 | 10 | [0.332, 0.951, 0.985, 0.980] | **3448.2** | Mean, RBF | **6th consecutive best** (+217% total) |
-| 11 | [0.310, 0.982, 0.997, 0.995] | pending | Mean, RBF | Continuing D2–D4 push toward 1.0 |
+| 11 | [0.310, 0.982, 0.997, 0.995] | **4125.9** | Mean, RBF | **7th consecutive best** (+279% total) |
+| 12 | [0.296, 0.998, 0.999, 0.995] | pending | Mean, RBF | D2/D3/D4 near boundary; gradient continuation |
 
 ### All-time best
 
-> 3448.17 — Week 10 — [0.332, 0.951, 0.985, 0.980]
+> 4125.88 — Week 11 — [0.310, 0.982, 0.997, 0.995]
 
 ### Key findings
 
@@ -300,7 +305,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.472, 0.407, 0.735, 0.782, 0.018] | **−0.246** | EI ξ=0.02, Matérn | **All-time best** (+66%) |
 | 9 | [0.482, 0.432, 0.767, 0.850, 0.010] | −0.485 | Mean, Matérn | Butter=0.850 too high |
 | 10 | [0.453, 0.402, 0.745, 0.556, 0.099] | −0.389 | EI ξ=0.008, Matérn 3/2 | Butter=0.556 too low — regression |
-| 11 | [0.491, 0.395, 0.718, 0.770, 0.009] | pending | EI ξ=0.001, Matérn | Reverted to Matérn; Butter restored to ~0.77 |
+| 11 | [0.491, 0.395, 0.718, 0.770, 0.009] | −0.250 | EI ξ=0.001, Matérn | Very close to best; confirms basin |
+| 12 | [0.451, 0.416, 0.722, 0.776, 0.029] | pending | Mean, Matérn | **Raw model-free centroid** from notebook 10 |
 
 ### All-time best
 
@@ -349,11 +355,12 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.073, 0.358, 0.341, 0.322, 0.272, 0.727] | **2.377** | EI ξ=0.005, **RQ** | **New best** — RQ kernel + D5 reduction |
 | 9 | [0.090, 0.362, 0.338, 0.315, 0.291, 0.724] | **2.451** | EI ξ=0.005, RQ, β=1.0 | **All-time best** (+80%) |
 | 10 | [0.103, 0.343, 0.353, 0.248, 0.380, 0.856] | 1.814 | EI ξ=0.002, RQ, β=1.0 | D6=0.856 way too high — −26% regression |
-| 11 | [0.096, 0.349, 0.355, 0.271, 0.301, 0.717] | pending | EI ξ=0.01, RQ, β=1.0 | All dims within search bounds; near W9 best |
+| 11 | [0.096, 0.349, 0.355, 0.271, 0.301, 0.717] | **2.588** | EI ξ=0.01, RQ, β=1.0 | **New best** — search bounds + RQ kernel |
+| 12 | [0.090, 0.355, 0.360, 0.261, 0.305, 0.720] | pending | EI ξ=0.005, RQ, β=1.0 | Bounded GP + centroid check; near W11 best |
 
 ### All-time best
 
-> 2.4514 — Week 9 — [0.090, 0.362, 0.338, 0.315, 0.291, 0.724]
+> 2.5883 — Week 11 — [0.096, 0.349, 0.355, 0.271, 0.301, 0.717]
 
 ### Key findings
 
@@ -403,7 +410,8 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 | 8 | [0.094, 0.275, 0.004, 0.019, 0.942, 0.697, 0.329, 0.861] | **9.830** | EI ξ=0.02, Matérn ARD | **New best** — D3→0.004, D4→0.019 |
 | 9 | [0.080, 0.220, 0.003, 0.015, 0.965, 0.506, 0.326, 0.871] | **9.875** | EI ξ=0.1, Matérn ARD | **All-time best** — D3/D4 pushed further |
 | 10 | [0.089, 0.471, 0.007, 0.711, 0.689, 0.953, 0.479, 0.793] | 9.166 | EI ξ=0.049, Matérn ARD | D4/D5 massive violation — confirmed constraints |
-| 11 | [0.095, 0.235, 0.0003, 0.010, 0.975, 0.400, 0.330, 0.863] | pending | UCB β=0.4, Matérn ARD | 6D GP + bounded; all tight dims within confirmed ranges |
+| 11 | [0.095, 0.235, 0.0003, 0.010, 0.975, 0.400, 0.330, 0.863] | 9.856 | UCB β=0.4, Matérn ARD | Near-best; 6D GP + search bounds working |
+| 12 | [0.075, 0.220, 0.001, 0.010, 0.980, 0.400, 0.325, 0.870] | pending | EI β=2.5, Matérn ARD | AI analysis + manual; hand-tuned toward W9 best |
 
 ### All-time best
 
@@ -434,14 +442,14 @@ Documents the surrogate model choices, acquisition settings, and learning outcom
 |----|------|------------------|-------------|-----------|-------------|-------------|--------------|-----------|------------|
 | 1 | 2 | Matérn 5/2 | UCB β=0.5 | — | arcsinh | ≈0 | 1.64×10⁻⁷ | W8 | +50 orders |
 | 2 | 2 | Matérn 5/2 | UCB β=0.5 | het-GP | standardize | 0.611 | **0.726** | W6 | +19% |
-| 3 | 3 | Matérn 5/2 | EI ξ=0.005 | bounded, LS≤3.0 | standardize | −0.035 | **−0.009** | W5 | +74% |
+| 3 | 3 | Matérn 5/2 | EI ξ=0.001 | bounded, LS≤3.0 | standardize | −0.035 | **−0.0083** | W11 | +76% |
 | 4 | 4 | Matérn 3/2 | EI ξ=0.001 | ARD, bounded | standardize | −4.026 | **+0.367** | W8 | +109% |
-| 5 | 4 | RBF | Mean | bounded | standardize | 1088.9 | **3448.2** | W10 | +217% |
+| 5 | 4 | RBF | Mean | bounded | standardize | 1088.9 | **4125.9** | W11 | +279% |
 | 6 | 5 | Matérn 5/2 | EI ξ=0.001 | — | standardize | −0.714 | **−0.246** | W8 | +66% |
-| 7 | 6 | Rational Quadratic | EI ξ=0.01 | bounded | standardize | 1.365 | **2.451** | W9 | +80% |
+| 7 | 6 | Rational Quadratic | EI ξ=0.005 | bounded | standardize | 1.365 | **2.588** | W11 | +90% |
 | 8 | 8 | Matérn 5/2 | UCB β=0.4 | ARD, bounded, 6D GP, LS≤3.0 | standardize | 9.598 | **9.875** | W9 | +2.9% |
 
-**All 8 functions have beaten the initial data best.** W11 results pending.
+**All 8 functions have beaten the initial data best.** W11 produced 3 new bests (F3, F5, F7). W12 results pending.
 
 ---
 
@@ -559,3 +567,30 @@ NGBoost (Natural Gradient Boosting) was tested in `analysis/06_kernel_variants_n
 **Change:** `build_gp` now accepts `ls_bounds` parameter. F3 and F8 configured with `(1e-2, 3.0)` vs default `(1e-2, 10.0)`. Applied to Matérn and RBF kernel instantiation.
 
 **Impact:** Prevents the optimizer from learning length-scales exceeding 3× the domain width. F3's D1 length-scale dropped from 4.18 to <3.0, forcing the GP to learn local structure rather than treating the entire domain as flat.
+
+### W12 — Surrogate alternatives analysis (notebook 10)
+
+**Implemented:** Between W11 results and W12 submissions.
+
+**Change:** Systematic evaluation of alternative surrogates for stale functions. Tested NN-64×2 for F6 (5 seeds), local GP (k=15 nearest) for F3, model-free weighted centroid for all 8 functions, updated RF feature importance for F8.
+
+**Key findings:**
+- NN-64×2 for F6: R²=0.693±0.019 vs GP 0.690 — delta +0.003, not significant. NN suggestion dist=0.175 from best, worse than GP (0.080) and centroid (0.029). **Rejected.**
+- Local GP for F3: LOO R²=0.511 vs global GP −0.014. Argmax dist=0.094 vs 0.606. **Adopted** for F3 W12 query.
+- Model-free centroid: closer to best than any model for F6 (dist=0.029). **Adopted** as F6 W12 query directly.
+- RF importance for F8: D6 (0.017) + D8 (0.026) = 4.3% of total. D6/D8 mask confirmed.
+
+**Impact:** W12 submissions for F3, F4, and F6 are driven by analysis-notebook outputs rather than the GP surrogate. This represents a strategic shift from surrogate-first to analysis-first decision-making.
+
+### W12 — PCA analysis (notebook 11)
+
+**Implemented:** Between W11 results and W12 submissions.
+
+**Change:** PCA applied to all 8 functions. Explained variance, PC loadings, PC1–PC2 projections (coloured by Y rank), trajectory plots, and comparison with GP ARD / RF importance.
+
+**Key findings:**
+- No input-space dimension reduction possible: all functions require ≥90% of PCs for 90% variance
+- PCA importance is uncorrelated with output-relevance measures for F8 (ρ=0.071 with RF importance)
+- Trajectory plots confirm convergence patterns: F5 traces a directed gradient path, F2/F7 collapse into tight clusters
+
+**Impact:** Confirmed that PCA is the wrong tool for BBO dimension selection. Supervised methods (GP ARD, RF importance, Spearman) remain the correct approach. PCA plots useful for visualising sampling strategy evolution.

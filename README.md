@@ -160,15 +160,15 @@ The dashboard integrates **Anthropic Claude** to generate per-function strategy 
 | --- | ---- | ------------------------------ | -------------- | ------------- | --------- | ---------------------- |
 | 1   | 2D   | Contamination/radiation field  | ≈7.7×10⁻¹⁶     | **1.6×10⁻⁷**  | W8        | +9 orders of magnitude |
 | 2   | 2D   | Noisy log-likelihood           | 0.6112         | **0.7260**    | W6        | +19%                   |
-| 3   | 3D   | Drug compound combinations     | −0.0348        | **−0.0090**   | W5        | +74%                   |
+| 3   | 3D   | Drug compound combinations     | −0.0348        | **−0.0083**   | **W11 ↑** | **+76%**               |
 | 4   | 4D   | Warehouse ML hyperparameters   | −4.0255        | **+0.3674**   | W8        | +109% (sign flip)      |
-| 5   | 4D   | Chemical yield (unimodal)      | 1088.86        | **3448.2**    | **W10 ↑** | **+217%**              |
+| 5   | 4D   | Chemical yield (unimodal)      | 1088.86        | **4125.9**    | **W11 ↑** | **+279%**              |
 | 6   | 5D   | Cake recipe (negative penalty) | −0.7143        | **−0.2462**   | W8        | +66%                   |
-| 7   | 6D   | GBM hyperparameter tuning      | 1.3650         | **2.4514**    | W9        | +80%                   |
+| 7   | 6D   | GBM hyperparameter tuning      | 1.3650         | **2.5883**    | **W11 ↑** | **+90%**               |
 | 8   | 8D   | Complex ML hyperparameters     | 9.5985         | **9.8753**    | W9        | +2.9%                  |
 
 
-**All 8 functions beat the initial data best. F5 was the standout success: six consecutive improvements (W5→W10), with the final yield more than tripling the initial best (+217%). W8 was the highest-impact week (6 new bests); W10 produced one final best (F5). Exploitation dominated: 7/8 all-time bests came from tight perturbation within confirmed basins. W11: major surrogate engineering (search bounds, dim masking, LS cap) — results pending.**
+**All 8 functions beat the initial data best. F5 is the standout success: seven consecutive improvements (W5→W11), nearly quadrupling the initial best (+279%). W8 was the highest-impact week (6 new bests); W11 produced 3 new bests (F3, F5, F7) validating search bounds. W12 shifts to analysis-driven queries — centroid and local GP candidates preferred over global GP for stale functions.**
 
 ---
 
@@ -230,7 +230,8 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | 8    | 2026-05-01 | All 8 functions | **Best week of the challenge: 6 new all-time bests.** F1 breakthrough (1.6×10⁻⁷) — hotspot hunt analysis validated, +50 orders of magnitude. F4 third consecutive improvement (+0.367, Matérn 3/2 confirmed). F5 massive D2 breakout (1963.7, +32%). F6 recovered (−0.246, Flour/Eggs rebalanced). F7 first improvement over W2 in six weeks (2.377, RQ kernel + D5 reduction). F8 new best (9.830, D3/D4 pushed toward zero). F2 near-best (0.715). F3 drifting (−0.017). All 8 functions now beat initial data best.                                               |
 | 9    | 2026-05-08 | All 8 functions | **3 new all-time bests** — F5 (2238.7, 4th consecutive), F7 (2.451, RQ kernel + micro-perturbation), F8 (9.875, D3/D4 toward zero). F4 speculative D1=0.230 probe returned −3.21 (worst since W1) — hard constraint violation punished. F2, F3, F6 regressions. F1 regression (−1.3×10⁻¹⁴). Tight exploitation confirmed as dominant strategy.                                                                                                                                                                                                                       |
 | 10   | 2026-05-15 | All 8 functions | **1 new all-time best** — F5 (3448.2, **+54%, 6th consecutive improvement**). All 3 exploratory bets failed: F3 corner probe (−0.237, 26× worse), F6 Butter reduction (−0.389), F8 massive constraint violation (9.166). F1 RBF kernel trial (3.67×10⁻¹⁰) worse than Matérn. F2 noise-dominated (0.564).                                                                                                                                                                                                                                                             |
-| 11   | 2026-05-22 | All 8 functions | **Major surrogate engineering — 3 structural changes.** Landscape analysis (notebooks 08, 09) diagnosed GP wandering: LOO R²<0.20 for F3, ARD failure for F8 (D5 LS=10.0). Implemented search bounds for F3/F4/F5/F7/F8, dimension masking for F8 (6D GP dropping D6/D8), LS cap ≤3.0 for F3/F8. Suggestion distance to known best improved 54–89% across constrained functions. All queries exploit within confirmed basins. Results pending. |
+| 11   | 2026-05-22 | All 8 functions | **3 new all-time bests — search bounds validated.** F3 (−0.00831, first improvement since W5 — bounded query prevented GP corner-wandering), F5 (4125.9, **7th consecutive**, +279% total), F7 (2.588, +5.6%). F1 improved to 3.3×10⁻⁹ but below W8 peak. F6 near-best (−0.250). F4 regression (D2=0.453 outside [0.42, 0.44]). F8 near-best (9.856). |
+| 12   | 2026-05-29 | All 8 functions | **Strategic pivot to analysis-driven queries.** Between-weeks: notebook 10 (surrogate alternatives) showed NN does not help, local GP beats global for F3, centroid beats all models for F6. Notebook 11 (PCA) confirmed PCA is wrong tool for BBO dimension selection. F6 W12 = raw model-free centroid. F4 W12 = top-5 centroid. F3 = local GP + centroid blend. Surrogate confidence reduced; analysis notebooks now the primary decision tool. Results pending. |
 
 
 ---
@@ -259,6 +260,9 @@ The following improvements have been made to the surrogate pipeline since Week 1
 | Length-scale upper bound cap                        | W11           | F3, F8 — LS ≤ 3.0 prevents optimizer from learning runaway length-scales                         |
 | F3 landscape analysis (notebook 08)                 | Between W10–W11 | Diagnosed GP LOO R² < 0.20, length-scale pathology, radial decay ρ=−0.718                       |
 | F8 landscape analysis (notebook 09)                 | Between W10–W11 | Diagnosed ARD failure (D5 LS=10.0), 6D GP improvement, EI corner pathology                      |
+| W12 surrogate alternatives (notebook 10)            | Between W11–W12 | NN-64×2 rejected for F6; local GP validated for F3 (R² −0.014→0.511); centroid beats all for F6 |
+| PCA analysis (notebook 11)                          | Between W11–W12 | PCA on all 8 functions; confirmed PCA uncorrelated with output-relevance; trajectory plots       |
+| Analysis-driven query selection                     | W12             | F6 = raw centroid, F4 = top-5 centroid, F3 = local GP blend — surrogate no longer primary tool  |
 
 
 ---

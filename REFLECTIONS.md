@@ -1420,3 +1420,89 @@ All 8 submissions generated using the updated pipeline with search bounds and cl
 This was the most impactful engineering change since the output standardisation in W4. The root cause of most regressions in W6–W10 was not poor kernel choice or wrong acquisition parameters — it was that candidates were sampled from the entire hypercube, allowing the acquisition function's uncertainty term to override all prior knowledge. Search bounds solve this structurally: they encode the hard constraint table *into the candidate generation step*, making it impossible for the acquisition to suggest queries in known-bad regions.
 
 The F8 dimension masking is equally significant. At n=50 in 8D, the GP cannot learn correct ARD length-scales — it attributes signal to noise dimensions and misses critical constraints on dimensions like D5. Dropping the noise dimensions and fitting a 6D GP gives the optimizer a tractable problem: 50/6 ≈ 8 points per dimension instead of 50/8 ≈ 6, and every dimension is genuinely relevant.
+
+---
+
+## Week 11 Results — Search Bounds Validated
+
+W11 produced **3 new all-time bests** — F3 (−0.00831, first improvement since W5), F5 (4125.9, 7th consecutive), F7 (2.588, +5.6%). The search bounds and dimension masking implemented between W10 and W11 were directly responsible:
+
+| Fn | W11 Y | Previous Best | Improved? | Key factor |
+|----|-------|---------------|-----------|------------|
+| F1 | 3.30×10⁻⁹ | 1.64×10⁻⁷ (W8) | No | Still within hotspot band but missed peak |
+| F2 | 0.691 | 0.726 (W6) | No | Noise-dominated; irreducible stochasticity |
+| F3 | **−0.00831** | −0.00897 (W5) | **Yes** | First bounded query — search bounds prevented GP from wandering to corners |
+| F4 | −0.153 | +0.367 (W8) | No | D2=0.453 slightly outside confirmed [0.42, 0.44] |
+| F5 | **4125.9** | 3448.2 (W10) | **Yes** | 7th consecutive improvement; D2/D3/D4 pushed to 0.98–1.00 |
+| F6 | −0.250 | −0.246 (W8) | No | Very close to best; confirms [Flour≈0.49, Butter≈0.77] region |
+| F7 | **2.588** | 2.451 (W9) | **Yes** | All 6 dims within search bounds; RQ kernel + tight exploitation |
+| F8 | 9.856 | 9.875 (W9) | No | 6D GP + bounded; near-best but D2=0.235 may be suboptimal |
+
+### Key learnings from W11 results
+
+**Search bounds are the most impactful single change in the challenge.** F3 had not improved since W5 — six weeks of stagnation where the GP consistently suggested corners. The first bounded query produced a new best. F7 similarly broke a 2-week plateau.
+
+**F5's gradient strategy is extraordinary.** Seven consecutive improvements from W5 to W11, with yield increasing from 1413 → 4126 (+192%). The pattern is unambiguous: D2, D3, D4 are all monotonically approaching 1.0, and each push closer to the boundary yields a larger return. W11's D2=0.982, D3=0.997, D4=0.995 are very close to the upper limit.
+
+**F4 remains fragile.** Even within search bounds, the suggestion at D2=0.453 produced −0.153. The confirmed optimum at [0.438, 0.431, 0.355, 0.380] (W8) is extremely narrow — perturbations of 0.02 in D2 cause sign flips.
+
+---
+
+## Week 12 — Shifting from Surrogate to Analysis-Driven Queries
+
+### The confidence shift
+
+By W12, my confidence in the GP surrogate's raw suggestions has materially decreased. The evidence accumulated across 11 weeks shows that:
+
+1. **The GP is misleading for 3 of 8 functions** — F1 (negative R²), F3 (R² < 0.05 globally), and F2 (noise-dominated, R² = 0.18). For these functions, the GP's acquisition function actively guides queries away from the optimum.
+
+2. **Even where the GP fits well, the acquisition function wanders** — F4's GP has R² = 0.94 yet the W11 suggestion at D2=0.453 regressed. The acquisition's uncertainty term makes nearby points with slightly different coordinates appear equally or more attractive than the known best.
+
+3. **Model-free approaches outperform the GP for stale functions** — notebook 10's weighted centroid (top-5 observations weighted by Y) produced suggestions closer to the known optimum than the GP for F6 (centroid dist=0.029 vs GP dist=0.131).
+
+### Between-weeks analysis: notebooks 10 and 11
+
+**Notebook 10 (surrogate alternatives):**
+- NN-64×2 for F6: preliminary R² of 0.734 was a single-seed artefact. Across 5 seeds, mean R² = 0.693 ± 0.019 — statistically identical to GP (0.690). NN suggestion was further from the best (0.175) than the GP (0.080) or centroid (0.029). **Verdict: NN does not help.**
+- Local GP for F3 (TuRBO-style, k=15 nearest): LOO R² = 0.511 vs global GP's −0.014. Argmax distance dropped from 0.606 to 0.094. **Verdict: local GP is dramatically better for F3.**
+- Model-free centroid: all 8 functions had centroids within 0.04 of the best-known point. For F6, the centroid was the closest candidate generator tested. **Verdict: centroid is the safest strategy for stale functions.**
+- RF feature importance for F8: D6 (0.017) and D8 (0.026) confirmed as noise (4.3% combined). D6 Spearman ρ=0.008 (p=0.95). **Verdict: D6/D8 mask fully validated at n=51.**
+
+**Notebook 11 (PCA analysis):**
+
+*Explained variance and scree plots:*
+- For the low-D functions (F1–F3), every principal component carries substantial variance (e.g. F3 splits 43/36/22 across three PCs). There is no elbow — the input space is already compact and no dimension can be discarded.
+- Among the mid-D functions, F5 has the sharpest scree-plot elbow: PC1 alone captures 53%, consistent with the strong unidirectional gradient observed in F5's output. F4 and F6 are flatter (no single dominant direction).
+- F6 is the only function that reaches 90% cumulative variance before the last PC (4 of 5), suggesting one input dimension contributes relatively less to the sampling spread — though that does not imply it is unimportant for the output.
+- For the high-D functions, F7 and F8 show gradually declining profiles with no sharp elbow. F8 requires all 8 PCs for 95%, confirming that queries have been well-dispersed across the full 8D space.
+
+*Key findings:*
+- PCA importance was uncorrelated with RF/Spearman for F8 (ρ = 0.071), confirming that PCA measures input *spread*, not output *relevance*. Dimensions that appear "important" in PCA are simply the directions along which we sampled most broadly.
+- Trajectory plots in PC1–PC2 space showed clear convergence patterns: F5's submissions trace a directed path, while F2 and F7 collapse into tight clusters near the observed optimum.
+- The flat scree profiles for most functions are expected given our deliberate broad exploration strategy. Dimensionality reduction of the input space is unlikely to improve the surrogate.
+
+*Kernel PCA — considered and rejected:*
+I considered adding kernel PCA (RBF or polynomial kernel) to capture non-linear manifold structure. I decided against it for three reasons: (1) the core limitation is unchanged — kernel PCA is still unsupervised on X, so it would reveal non-linear structure in the *queries*, not in the output landscape; (2) with only 21–51 points per function, the kernel hyperparameter (gamma) would be under-determined and results unstable; (3) no strategic decision at this stage — dimension masking, search bounds, or surrogate choice — would be changed by a kernel PCA finding. The output-aware methods (GP ARD, RF importance, Spearman) already provide the dimension-selection signal that matters for BBO.
+
+- **Key insight: PCA (and its kernel extension) is useful for detecting sampling bias and visualising query trajectories, but not for improving surrogates or guiding dimension selection. Supervised, output-aware methods remain the right tool for those decisions.**
+
+### W12 submission strategy
+
+For W12, I deliberately shifted from trusting surrogate suggestions to using analysis-notebook outputs and AI-assisted point selection. The rationale: with only 1 query remaining after W12, the cost of a regression is very high, and the analysis notebooks provide more reliable guidance than the GP for most functions.
+
+| Fn | W12 query | Source | Strategy |
+|----|-----------|--------|----------|
+| F1 | [0.686, 0.700] | Model-free radial | Micro-perturbation toward hotspot centre; β=0.1 near-zero exploration |
+| F2 | [0.691, 0.930] | AI analysis + centroid | Shifted X₁ toward W6 best (0.699); β=0.3 |
+| F3 | [0.479, 0.450, 0.520] | Local GP (k=15) + centroid | Notebook 10 showed local GP argmax near [0.494, 0.478, 0.495]; adjusted toward centroid |
+| F4 | [0.434, 0.435, 0.350, 0.379] | Centroid of top-5 | Near-identical to centroid [0.438, 0.431, 0.362, 0.382]; surrogate ignored |
+| F5 | [0.296, 0.998, 0.999, 0.995] | Gradient continuation | D2/D3/D4 pushed to near-boundary; D1 reduced slightly |
+| F6 | [0.451, 0.416, 0.722, 0.776, 0.029] | Model-free centroid | **Directly from notebook 10** — centroid was the closest suggestion to the best of any method tested |
+| F7 | [0.090, 0.355, 0.360, 0.261, 0.305, 0.720] | Bounded GP + centroid | Within search bounds; near W11 best |
+| F8 | [0.075, 0.220, 0.001, 0.010, 0.980, 0.400, 0.325, 0.870] | AI analysis + manual | Hand-tuned toward W9 best point; all tight dims within confirmed ranges |
+
+### Reflection
+
+This week represents a deliberate strategic pivot: from "run the surrogate and submit its suggestion" to "use the surrogate as one input among several, and prefer analysis-driven or model-free candidates when confidence is low." The analysis notebooks (08, 09, 10, 11) have become the primary decision-making tool, with the Streamlit dashboard serving as a secondary cross-check rather than the primary suggestion engine.
+
+For F6, the submission is the raw model-free centroid from notebook 10 — no surrogate involved at all. For F4, it is the top-5 centroid with minor rounding. For F3, it is a blend of the local GP and centroid. Only F5, F7, and F8 still rely primarily on the surrogate pipeline, and even there the suggestions were validated against the centroid before submission.

@@ -286,6 +286,37 @@ Three structural engineering changes were implemented:
 
 ---
 
+## Week 11 → Week 12 Strategic Shift
+
+### W11 results — search bounds validated
+
+**3 new all-time bests** — F3 (−0.00831, first improvement since W5), F5 (4125.9, 7th consecutive), F7 (2.588, +5.6%). The search bounds directly enabled F3 and F7; F5 continued its gradient push.
+
+### The confidence shift
+
+W12 marks a strategic pivot from surrogate-driven to analysis-driven query selection. Two new analysis notebooks (10: surrogate alternatives, 11: PCA) showed that:
+
+- The GP is actively misleading for 3 functions (F1, F2, F3)
+- Model-free weighted centroids outperform the GP for stale functions (F6 centroid dist=0.029 vs GP dist=0.131)
+- Local GP (TuRBO-style, k=15 nearest) dramatically outperforms global GP for F3 (LOO R² 0.511 vs −0.014)
+- NN-64×2 does NOT improve over GP for F6 (R² delta = +0.003, not significant)
+- PCA confirms all dimensions are needed (no input-space reduction), but is uncorrelated with output-relevance measures
+
+### W12 strategic posture
+
+| Fn | Strategy | Source |
+|----|----------|--------|
+| F1 | Model-free radial, β=0.1 | Micro-perturbation toward hotspot centre |
+| F2 | AI analysis + centroid, β=0.3 | Noise-dominated; no surrogate helps |
+| F3 | Local GP + centroid blend | Notebook 10's local GP argmax at dist=0.094 |
+| F4 | Top-5 centroid (surrogate ignored) | GP R²=0.94 but W11 still regressed; centroid is safer |
+| F5 | Gradient push (D2/D3/D4 → 1.0) | 7th consecutive best; near boundary |
+| F6 | **Model-free centroid directly** | Notebook 10: centroid closer than GP or NN |
+| F7 | Bounded GP + centroid check | Near W11 best; search bounds active |
+| F8 | AI analysis + manual, EI β=2.5 | Hand-tuned toward W9 best; tight dims constrained |
+
+---
+
 ## Hard Dimension Constraints (Evidence-Based)
 
 These constraints are derived from multiple weeks of observation and should not be violated without strong analytical justification:
@@ -344,4 +375,11 @@ These constraints are derived from multiple weeks of observation and should not 
 | 10–11 | **Length-scale upper bounds should be function-specific.** Default LS bound of 10.0 lets the optimizer learn length-scales 10× the domain width. Capping at 3.0 for F3/F8 forces tighter structure. |
 | 10–11 | **GP LOO R² < 0.20 means the surrogate is useless.** F3's R² was 0.17 for all kernels. Radial Spearman (ρ=−0.718) provided more signal from 25 points than any GP could. |
 | 10–11 | **5 of 8 acquisition functions wander when unconstrained.** Only F1, F2, F6 stay within the top-5 bounding box. This was the hidden cause of many W6–W10 regressions. |
+| 11   | **Search bounds produce immediate results.** F3 had been stale for 6 weeks; the first bounded query set a new best. F7 broke a 2-week plateau. 3 of 8 functions improved simultaneously — the highest hit rate since W8. |
+| 11   | **F5's gradient is the most reliable signal in the challenge.** 7 consecutive improvements (W5–W11) by pushing D2/D3/D4 toward 1.0. Total improvement from initial best: +279%. No other strategy has this consistency. |
+| 11–12 | **When surrogate confidence is low, prefer model-free candidates.** The top-5 weighted centroid is within 0.04 of the best for all 8 functions. For F6, the centroid (dist=0.029) beat the GP (0.131) and NN (0.175) as a candidate generator. |
+| 11–12 | **Local GP (TuRBO-style) solves the global length-scale pathology.** F3's global GP has R²=−0.014 and predicts the optimum at the opposite corner. Local GP (k=15) reaches R²=0.511 with argmax dist=0.094. |
+| 11–12 | **NN surrogates do not help at n=31.** NN-64×2 for F6 showed R²=0.693±0.019 vs GP 0.690 — statistically identical. Single-seed results are misleading; always test across multiple seeds. |
+| 11–12 | **PCA is the wrong tool for BBO dimension selection.** PCA importance is uncorrelated with RF/Spearman for F8 (ρ=0.071). PCA measures input spread, not output relevance. Use supervised methods (GP ARD, RF importance, Spearman). |
+| 12   | **Analysis notebooks have become the primary decision tool.** F6's W12 query is the raw centroid from notebook 10. F4's is the top-5 centroid. The Streamlit dashboard is now a cross-check, not the primary engine. |
 
